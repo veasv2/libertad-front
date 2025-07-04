@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 
 import { CONFIG } from 'src/global-config';
 
-import { AccountGeneralView } from 'src/sections/account/view';
+import { AccountGeneralView } from 'src/sections/seguridad/account/view';
 
 // ----------------------------------------------------------------------
 
