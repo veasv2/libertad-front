@@ -31,16 +31,16 @@ import { SignUpTerms } from '../../components/sign-up-terms';
 export type SignUpSchemaType = zod.infer<typeof SignUpSchema>;
 
 export const SignUpSchema = zod.object({
-  firstName: zod.string().min(1, { message: 'First name is required!' }),
-  lastName: zod.string().min(1, { message: 'Last name is required!' }),
+  firstName: zod.string().min(1, { message: '¡El nombre es obligatorio!' }),
+  lastName: zod.string().min(1, { message: '¡El apellido es obligatorio!' }),
   email: zod
     .string()
-    .min(1, { message: 'Email is required!' })
-    .email({ message: 'Email must be a valid email address!' }),
+    .min(1, { message: '¡El correo electrónico es obligatorio!' })
+    .email({ message: '¡El correo electrónico debe ser válido!' }),
   password: zod
     .string()
-    .min(1, { message: 'Password is required!' })
-    .min(6, { message: 'Password must be at least 6 characters!' }),
+    .min(1, { message: '¡La contraseña es obligatoria!' })
+    .min(6, { message: '¡La contraseña debe tener al menos 6 caracteres!' }),
 });
 
 // ----------------------------------------------------------------------
@@ -55,9 +55,9 @@ export function JwtSignUpView() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const defaultValues: SignUpSchemaType = {
-    firstName: 'Hello',
-    lastName: 'Friend',
-    email: 'hello@gmail.com',
+    firstName: 'Hola',
+    lastName: 'Amigo',
+    email: 'hola@gmail.com',
     password: '@2Minimal',
   };
 
@@ -96,22 +96,22 @@ export function JwtSignUpView() {
       >
         <Field.Text
           name="firstName"
-          label="First name"
+          label="Nombre"
           slotProps={{ inputLabel: { shrink: true } }}
         />
         <Field.Text
           name="lastName"
-          label="Last name"
+          label="Apellido"
           slotProps={{ inputLabel: { shrink: true } }}
         />
       </Box>
 
-      <Field.Text name="email" label="Email address" slotProps={{ inputLabel: { shrink: true } }} />
+      <Field.Text name="email" label="Correo electrónico" slotProps={{ inputLabel: { shrink: true } }} />
 
       <Field.Text
         name="password"
-        label="Password"
-        placeholder="6+ characters"
+        label="Contraseña"
+        placeholder="6+ caracteres"
         type={showPassword.value ? 'text' : 'password'}
         slotProps={{
           inputLabel: { shrink: true },
@@ -134,9 +134,9 @@ export function JwtSignUpView() {
         type="submit"
         variant="contained"
         loading={isSubmitting}
-        loadingIndicator="Create account..."
+        loadingIndicator="Creando cuenta..."
       >
-        Create account
+        Crear cuenta
       </Button>
     </Box>
   );
@@ -144,12 +144,12 @@ export function JwtSignUpView() {
   return (
     <>
       <FormHead
-        title="Get started absolutely free"
+        title="Comienza totalmente gratis"
         description={
           <>
-            {`Already have an account? `}
+            {`¿Ya tienes una cuenta? `}
             <Link component={RouterLink} href={paths.auth.jwt.signIn} variant="subtitle2">
-              Get started
+              Inicia sesión
             </Link>
           </>
         }
