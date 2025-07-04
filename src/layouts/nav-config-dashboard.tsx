@@ -63,6 +63,20 @@ export const navData: NavSectionProps['data'] = [
     ],
   },
   /**
+   * Seguridad
+   */
+  {
+    subheader: 'Seguridad',
+    items: [
+      {
+        title: 'Usuarios',
+        path: paths.seguridad.usuarios,
+        icon: ICONS.user
+      },
+    ],
+  },
+  /**
+   
    * Management
    */
   {

@@ -54,6 +54,6 @@ export const paths = {
   },
   seguridad: {
     root: ROOTS.SEGURIDAD,
-    one: `${ROOTS.SEGURIDAD}/one`,
+    usuarios: `${ROOTS.SEGURIDAD}/usuarios`,
   }
 }

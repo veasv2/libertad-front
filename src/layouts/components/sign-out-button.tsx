@@ -42,7 +42,7 @@ export function SignOutButton({ onClose, sx, ...other }: Props) {
       sx={sx}
       {...other}
     >
-      Logout
+      Cerrar Sesión
     </Button>
   );
 }
