@@ -73,6 +73,11 @@ export const navData: NavSectionProps['data'] = [
         path: paths.seguridad.usuarios,
         icon: ICONS.user
       },
+      {
+        title: 'User',
+        path: paths.seguridad.user.root,
+        icon: ICONS.user
+      }
     ],
   },
   /**

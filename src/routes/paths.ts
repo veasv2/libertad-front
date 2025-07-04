@@ -55,5 +55,15 @@ export const paths = {
   seguridad: {
     root: ROOTS.SEGURIDAD,
     usuarios: `${ROOTS.SEGURIDAD}/usuarios`,
+    user: {
+      root: `${ROOTS.SEGURIDAD}/user`,
+      new: `${ROOTS.SEGURIDAD}/user/new`,
+      list: `${ROOTS.SEGURIDAD}/user/list`,
+      cards: `${ROOTS.SEGURIDAD}/user/cards`,
+      profile: `${ROOTS.SEGURIDAD}/user/profile`,
+      account: `${ROOTS.SEGURIDAD}/user/account`,
+      edit: (id: string) => `${ROOTS.SEGURIDAD}/user/${id}/edit`,
+      // demo: { edit: `${ROOTS.DASHBOARD}/user/${MOCK_ID}/edit` },
+    },
   }
 }
