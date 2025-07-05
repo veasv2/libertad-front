@@ -15,9 +15,12 @@ import InputLabel from '@mui/material/InputLabel';
 import IconButton from '@mui/material/IconButton';
 import FormControl from '@mui/material/FormControl';
 import InputAdornment from '@mui/material/InputAdornment';
+import Button from '@mui/material/Button';
 
 import { Iconify } from 'src/components/iconify';
 import { CustomPopover } from 'src/components/custom-popover';
+import { RouterLink } from 'src/routes/components';
+import { paths } from 'src/routes/paths';
 
 // ----------------------------------------------------------------------
 
@@ -29,7 +32,7 @@ type Props = {
   };
 };
 
-export function UserTableToolbar({ filters, options, onResetPage }: Props) {
+export function UsuarioTableToolbar({ filters, options, onResetPage }: Props) {
   const menuActions = usePopover();
 
   const { state: currentFilters, setState: updateFilters } = filters;
@@ -122,7 +125,8 @@ export function UserTableToolbar({ filters, options, onResetPage }: Props) {
             width: 1,
             flexGrow: 1,
             display: 'flex',
-            alignItems: 'center',
+            flexDirection: { xs: 'column', md: 'row' },
+            alignItems: { xs: 'stretch', md: 'center' },
           }}
         >
           <TextField
@@ -140,10 +144,28 @@ export function UserTableToolbar({ filters, options, onResetPage }: Props) {
               },
             }}
           />
-
-          <IconButton onClick={menuActions.onOpen}>
-            <Iconify icon="eva:more-vertical-fill" />
-          </IconButton>
+          <Box
+            sx={{
+              gap: 1,
+              display: 'flex',
+              flexDirection: 'row',
+              alignItems: 'center',
+              flexShrink: 0,
+            }}
+          >
+            <Button
+              component={RouterLink}
+              href={paths.seguridad.user.new}
+              variant="contained"
+              startIcon={<Iconify icon="mingcute:add-line" />}
+              sx={{ px: 2.5, py: 1 }}
+            >
+              Agregar
+            </Button>
+            <IconButton onClick={menuActions.onOpen}>
+              <Iconify icon="eva:more-vertical-fill" />
+            </IconButton>
+          </Box>
         </Box>
       </Box>
 

@@ -2,8 +2,8 @@
 
 import type { TableHeadCellProps } from 'src/components/table';
 import type { IUserItem, IUserTableFilters } from 'src/types/user';
-
-import { useState, useCallback, useMemo } from 'react';
+import Typography from '@mui/material/Typography';
+import { useState, useCallback } from 'react';
 import { varAlpha } from 'minimal-shared/utils';
 import { useBoolean, useSetState } from 'minimal-shared/hooks';
 
@@ -41,8 +41,16 @@ import {
   TablePaginationCustom,
 } from 'src/components/table';
 
+import {
+  BreadcrumbsRoot,
+  BreadcrumbsHeading,
+  BreadcrumbsContent,
+  BreadcrumbsContainer,
+  BreadcrumbsSeparator,
+} from './styles';
+
 import { UserTableRow } from './usuario-table-row';
-import { UserTableToolbar } from './usuario-table-toolbar';
+import { UsuarioTableToolbar } from './usuario-table-toolbar';
 import { UserTableFiltersResult } from './usuario-table-filters-result';
 
 // ----------------------------------------------------------------------
@@ -57,71 +65,39 @@ const TABLE_HEAD: TableHeadCellProps[] = [
   { id: 'status', label: 'Status', width: 100 },
   { id: '', width: 88 },
 ];
-
-// Constantes para mejores mensajes
-const MESSAGES = {
-  DELETE_SUCCESS: 'Usuario eliminado exitosamente',
-  DELETE_MULTIPLE_SUCCESS: 'Usuarios eliminados exitosamente',
-  DELETE_CONFIRMATION: '¿Estás seguro de que quieres eliminar',
-  DELETE_CONFIRMATION_MULTIPLE: 'elementos?',
-} as const;
-
 // ----------------------------------------------------------------------
 
 export function UsuarioTableView() {
   const table = useTable();
+
   const confirmDialog = useBoolean();
 
   const [tableData, setTableData] = useState<IUserItem[]>(_userList);
 
-  const filters = useSetState<IUserTableFilters>({
-    name: '',
-    role: [],
-    status: 'all'
-  });
+  const filters = useSetState<IUserTableFilters>({ name: '', role: [], status: 'all' });
   const { state: currentFilters, setState: updateFilters } = filters;
 
-  // Memoización de datos filtrados para evitar cálculos innecesarios
-  const dataFiltered = useMemo(() =>
-    applyFilter({
-      inputData: tableData,
-      comparator: getComparator(table.order, table.orderBy),
-      filters: currentFilters,
-    }),
-    [tableData, table.order, table.orderBy, currentFilters]
-  );
+  const dataFiltered = applyFilter({
+    inputData: tableData,
+    comparator: getComparator(table.order, table.orderBy),
+    filters: currentFilters,
+  });
 
   const dataInPage = rowInPage(dataFiltered, table.page, table.rowsPerPage);
 
-  // Memoización del estado de reset
-  const canReset = useMemo(() =>
-    !!currentFilters.name ||
-    currentFilters.role.length > 0 ||
-    currentFilters.status !== 'all',
-    [currentFilters]
-  );
+  const canReset =
+    !!currentFilters.name || currentFilters.role.length > 0 || currentFilters.status !== 'all';
 
   const notFound = (!dataFiltered.length && canReset) || !dataFiltered.length;
-
-  // Memoización de contadores por estado
-  const statusCounts = useMemo(() => {
-    const counts: Record<string, number> = {};
-    const validStatuses = ['active', 'pending', 'banned', 'rejected'];
-
-    validStatuses.forEach(status => {
-      counts[status] = tableData.filter(user => user.status === status).length;
-    });
-    counts.all = tableData.length;
-
-    return counts;
-  }, [tableData]);
 
   const handleDeleteRow = useCallback(
     (id: string) => {
       const deleteRow = tableData.filter((row) => row.id !== id);
 
+      toast.success('Delete success!');
+
       setTableData(deleteRow);
-      toast.success(MESSAGES.DELETE_SUCCESS);
+
       table.onUpdatePageDeleteRow(dataInPage.length);
     },
     [dataInPage.length, table, tableData]
@@ -130,8 +106,10 @@ export function UsuarioTableView() {
   const handleDeleteRows = useCallback(() => {
     const deleteRows = tableData.filter((row) => !table.selected.includes(row.id));
 
+    toast.success('Delete success!');
+
     setTableData(deleteRows);
-    toast.success(MESSAGES.DELETE_MULTIPLE_SUCCESS);
+
     table.onUpdatePageDeleteRows(dataInPage.length, dataFiltered.length);
   }, [dataFiltered.length, dataInPage.length, table, tableData]);
 
@@ -143,109 +121,78 @@ export function UsuarioTableView() {
     [updateFilters, table]
   );
 
-  const handleConfirmDelete = useCallback(() => {
-    handleDeleteRows();
-    confirmDialog.onFalse();
-  }, [handleDeleteRows, confirmDialog]);
-
-  // Función para determinar el color del tab
-  const getTabColor = useCallback((tabValue: string) => {
-    switch (tabValue) {
-      case 'active':
-        return 'success';
-      case 'pending':
-        return 'warning';
-      case 'banned':
-        return 'error';
-      default:
-        return 'default';
-    }
-  }, []);
-
-  // Función para determinar si el tab está activo
-  const isTabActive = useCallback((tabValue: string) => {
-    return tabValue === 'all' || tabValue === currentFilters.status;
-  }, [currentFilters.status]);
-
   const renderConfirmDialog = () => (
     <ConfirmDialog
       open={confirmDialog.value}
       onClose={confirmDialog.onFalse}
-      title="Eliminar usuarios"
+      title="Delete"
       content={
         <>
-          {MESSAGES.DELETE_CONFIRMATION} <strong>{table.selected.length}</strong> {MESSAGES.DELETE_CONFIRMATION_MULTIPLE}
+          Are you sure want to delete <strong> {table.selected.length} </strong> items?
         </>
       }
       action={
         <Button
           variant="contained"
           color="error"
-          onClick={handleConfirmDelete}
+          onClick={() => {
+            handleDeleteRows();
+            confirmDialog.onFalse();
+          }}
         >
-          Eliminar
+          Delete
         </Button>
       }
     />
   );
 
-  const renderStatusTabs = () => (
-    <Tabs
-      value={currentFilters.status}
-      onChange={handleFilterStatus}
-      sx={[
-        (theme) => ({
-          px: { md: 2.5 },
-          boxShadow: `inset 0 -2px 0 0 ${varAlpha(theme.vars.palette.grey['500Channel'], 0.08)}`,
-        }),
-      ]}
-    >
-      {STATUS_OPTIONS.map((tab) => (
-        <Tab
-          key={tab.value}
-          iconPosition="end"
-          value={tab.value}
-          label={tab.label}
-          icon={
-            <Label
-              variant={isTabActive(tab.value) ? 'filled' : 'soft'}
-              color={getTabColor(tab.value)}
-            >
-              {statusCounts[tab.value] || 0}
-            </Label>
-          }
-        />
-      ))}
-    </Tabs>
-  );
-
   return (
     <>
       <DashboardContent>
-        <CustomBreadcrumbs
-          heading="Lista de usuarios"
-          links={[
-            { name: 'Dashboard', href: paths.dashboard.root },
-            { name: 'Usuario', href: paths.seguridad.user.root },
-            { name: 'Lista' },
-          ]}
-          action={
-            <Button
-              component={RouterLink}
-              href={paths.seguridad.user.new}
-              variant="contained"
-              startIcon={<Iconify icon="mingcute:add-line" />}
-            >
-              Agregar usuario
-            </Button>
-          }
-          sx={{ mb: { xs: 3, md: 5 } }}
-        />
+        <Box sx={{ mb: { xs: 1, md: 2 } }}>
+          <Typography variant="h5">Lista de Usuarios</Typography>
+        </Box>
 
         <Card>
-          {renderStatusTabs()}
+          <Tabs
+            value={currentFilters.status}
+            onChange={handleFilterStatus}
+            sx={[
+              (theme) => ({
+                px: { md: 2.5 },
+                boxShadow: `inset 0 -2px 0 0 ${varAlpha(theme.vars.palette.grey['500Channel'], 0.08)}`,
+              }),
+            ]}
+          >
+            {STATUS_OPTIONS.map((tab) => (
+              <Tab
+                key={tab.value}
+                iconPosition="end"
+                value={tab.value}
+                label={tab.label}
+                icon={
+                  <Label
+                    variant={
+                      ((tab.value === 'all' || tab.value === currentFilters.status) && 'filled') ||
+                      'soft'
+                    }
+                    color={
+                      (tab.value === 'active' && 'success') ||
+                      (tab.value === 'pending' && 'warning') ||
+                      (tab.value === 'banned' && 'error') ||
+                      'default'
+                    }
+                  >
+                    {['active', 'pending', 'banned', 'rejected'].includes(tab.value)
+                      ? tableData.filter((user) => user.status === tab.value).length
+                      : tableData.length}
+                  </Label>
+                }
+              />
+            ))}
+          </Tabs>
 
-          <UserTableToolbar
+          <UsuarioTableToolbar
             filters={filters}
             onResetPage={table.onResetPage}
             options={{ roles: _roles }}
@@ -272,7 +219,7 @@ export function UsuarioTableView() {
                 )
               }
               action={
-                <Tooltip title="Eliminar seleccionados">
+                <Tooltip title="Delete">
                   <IconButton color="primary" onClick={confirmDialog.onTrue}>
                     <Iconify icon="solar:trash-bin-trash-bold" />
                   </IconButton>
@@ -315,7 +262,7 @@ export function UsuarioTableView() {
                     ))}
 
                   <TableEmptyRows
-                    height={table.dense ? 56 : 76}
+                    height={table.dense ? 56 : 56 + 20}
                     emptyRows={emptyRows(table.page, table.rowsPerPage, dataFiltered.length)}
                   />
 
@@ -361,23 +308,19 @@ function applyFilter({ inputData, comparator, filters }: ApplyFilterProps) {
     return a[1] - b[1];
   });
 
-  let filteredData = stabilizedThis.map((el) => el[0]);
+  inputData = stabilizedThis.map((el) => el[0]);
 
-  // Aplicar filtros de forma más eficiente
   if (name) {
-    const searchTerm = name.toLowerCase().trim();
-    filteredData = filteredData.filter((user) =>
-      user.name.toLowerCase().includes(searchTerm)
-    );
+    inputData = inputData.filter((user) => user.name.toLowerCase().includes(name.toLowerCase()));
   }
 
   if (status !== 'all') {
-    filteredData = filteredData.filter((user) => user.status === status);
+    inputData = inputData.filter((user) => user.status === status);
   }
 
-  if (role.length > 0) {
-    filteredData = filteredData.filter((user) => role.includes(user.role));
+  if (role.length) {
+    inputData = inputData.filter((user) => role.includes(user.role));
   }
 
-  return filteredData;
+  return inputData;
 }
