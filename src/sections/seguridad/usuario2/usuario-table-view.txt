@@ -1,452 +1,308 @@
 'use client';
 
-import { useState, useCallback, useMemo } from 'react';
+import type {
+  GridColDef,
+  GridRowSelectionModel,
+  GridColumnVisibilityModel,
+} from '@mui/x-data-grid';
+import type { IProductItem, IProductTableFilters } from 'src/types/product';
 
-import Typography from '@mui/material/Typography';
-import { varAlpha } from 'minimal-shared/utils';
 import { useBoolean, useSetState } from 'minimal-shared/hooks';
+import { useMemo, useState, useEffect, useCallback } from 'react';
 
-import Box from '@mui/material/Box';
-import Tab from '@mui/material/Tab';
-import Tabs from '@mui/material/Tabs';
 import Card from '@mui/material/Card';
-import Table from '@mui/material/Table';
 import Button from '@mui/material/Button';
-import TableBody from '@mui/material/TableBody';
-import TableRow from '@mui/material/TableRow';
-import Checkbox from '@mui/material/Checkbox';
-import TableHead from '@mui/material/TableHead';
-import TableCell from '@mui/material/TableCell';
-import TableSortLabel from '@mui/material/TableSortLabel';
-import Switch from '@mui/material/Switch';
-import TablePagination from '@mui/material/TablePagination';
-import FormControlLabel from '@mui/material/FormControlLabel';
-
-import type { Theme, SxProps, CSSObject } from '@mui/material/styles';
-import type { TablePaginationProps } from '@mui/material/TablePagination';
-import type { PaletteColorKey } from 'src/theme/core';
-import type { IUserTableFilters } from 'src/types/user';
+import { useTheme } from '@mui/material/styles';
+import { DataGrid, gridClasses } from '@mui/x-data-grid';
+import Box from '@mui/material/Box';
+import Typography from '@mui/material/Typography';
 
 import { paths } from 'src/routes/paths';
+import { RouterLink } from 'src/routes/components';
+
+import { PRODUCT_STOCK_OPTIONS } from 'src/_mock';
+import { useGetProducts } from 'src/actions/product';
 import { DashboardContent } from 'src/layouts/dashboard';
 
-import { Usuario, USUARIOS_PRUEBA } from 'src/models/seguridad/usuario';
-import { ESTADO_USUARIO_OPTIONS, TIPO_USUARIO_OPTIONS } from 'src/types/enums/usuario-enum';
-
-import { Label } from 'src/components/label';
 import { toast } from 'src/components/snackbar';
-import { Scrollbar } from 'src/components/scrollbar';
-import { ConfirmDialog } from 'src/components/custom-dialog';
+import { Iconify } from 'src/components/iconify';
 import { EmptyContent } from 'src/components/empty-content';
+import { ConfirmDialog } from 'src/components/custom-dialog';
+import { CustomBreadcrumbs } from 'src/components/custom-breadcrumbs';
+import { useToolbarSettings, CustomGridActionsCellItem } from 'src/components/custom-data-grid';
+
+import { ProductTableToolbar } from './usuario-table-toolbar';
 import {
-  useTable,
-  emptyRows,
-  rowInPage,
-  getComparator,
-} from 'src/components/table';
-
-import { UserTableRow } from './usuario-table-row';
-import { UsuarioTableToolbar } from './usuario-table-toolbar';
+  RenderCellStock,
+  RenderCellPrice,
+  RenderCellProduct,
+  RenderCellPublish,
+  RenderCellCreatedAt,
+} from './usuario-table-row';
 
 // ----------------------------------------------------------------------
-// CONSTANTS
-// ----------------------------------------------------------------------
 
-const visuallyHidden: CSSObject = {
-  border: 0,
-  padding: 0,
-  width: '1px',
-  height: '1px',
-  margin: '-1px',
-  overflow: 'hidden',
-  position: 'absolute',
-  whiteSpace: 'nowrap',
-  clip: 'rect(0 0 0 0)',
-};
-
-const ESTADO_USUARIO = [
-  { value: 'all', label: 'Todos', color: 'default' as PaletteColorKey },
-  ...ESTADO_USUARIO_OPTIONS
+const PUBLISH_OPTIONS = [
+  { value: 'published', label: 'Published' },
+  { value: 'draft', label: 'Draft' },
 ];
 
-const TABLE_HEAD = [
-  { id: 'dni_email', label: 'Usuario' },
-  { id: 'nombre_apellidos', label: 'Nombres', width: 150 },
-  { id: 'telefono', label: 'Teléfono', width: 100 },
-  { id: 'tipo', label: 'Tipo', width: 100 },
-  { id: 'estado', label: 'Estado', width: 100 },
-  { id: 'ultimo_acceso', label: 'Conexión', width: 120 },
-  { id: '', label: '', width: 64 }
-] as const;
+const HIDE_COLUMNS = { category: false };
+const HIDE_COLUMNS_TOGGLABLE = ['category', 'actions'];
 
-const TABLE_CONFIG = {
-  minWidth: 960,
-  rowHeights: { dense: 56, normal: 76 },
-  colSpan: 12
-} as const;
-
-// ----------------------------------------------------------------------
-// TYPES
-// ----------------------------------------------------------------------
-
-type TableHeadCellProps = {
-  id: string;
-  label?: string;
-  width?: CSSObject['width'];
-  align?: 'left' | 'center' | 'right';
-  sx?: SxProps<Theme>;
-};
-
-type TableHeadCustomProps = {
-  orderBy?: string;
-  rowCount?: number;
-  sx?: SxProps<Theme>;
-  numSelected?: number;
-  order?: 'asc' | 'desc';
-  headCells: readonly TableHeadCellProps[];
-  onSort?: (id: string) => void;
-  onSelectAllRows?: (checked: boolean) => void;
-};
-
-type TablePaginationCustomProps = TablePaginationProps & {
-  dense?: boolean;
-  sx?: SxProps<Theme>;
-  onChangeDense?: (event: React.ChangeEvent<HTMLInputElement>) => void;
-};
-
-type ApplyFilterProps = {
-  inputData: Usuario[];
-  filters: IUserTableFilters;
-  comparator: (a: Usuario, b: Usuario) => number;
-};
-
-// ----------------------------------------------------------------------
-// UTILITY FUNCTIONS
-// ----------------------------------------------------------------------
-
-function applyFilter({ inputData, comparator, filters }: ApplyFilterProps): Usuario[] {
-  const { name, status, role } = filters;
-
-  let filteredData = [...inputData];
-
-  // Aplicar filtros
-  if (name) {
-    filteredData = filteredData.filter((user) =>
-      user.nombres.toLowerCase().includes(name.toLowerCase())
-    );
-  }
-
-  if (status !== 'all') {
-    filteredData = filteredData.filter((user) => user.estado === status);
-  }
-
-  if (role.length > 0) {
-    filteredData = filteredData.filter((user) => role.includes(user.tipo));
-  }
-
-  // Aplicar ordenamiento
-  const stabilizedData = filteredData.map((el, index) => [el, index] as const);
-
-  stabilizedData.sort((a, b) => {
-    const order = comparator(a[0], b[0]);
-    return order !== 0 ? order : a[1] - b[1];
-  });
-
-  return stabilizedData.map((el) => el[0]);
-}
-
-// ----------------------------------------------------------------------
-// INTERNAL COMPONENTS
-// ----------------------------------------------------------------------
-
-function TableHeadCustom({
-  sx,
-  order,
-  onSort,
-  orderBy,
-  headCells,
-  rowCount = 0,
-  numSelected = 0,
-  onSelectAllRows,
-}: TableHeadCustomProps) {
-  const isIndeterminate = numSelected > 0 && numSelected < rowCount;
-  const isAllSelected = rowCount > 0 && numSelected === rowCount;
-
-  return (
-    <TableHead sx={sx}>
-      <TableRow>
-        {onSelectAllRows && (
-          <TableCell padding="checkbox">
-            <Checkbox
-              indeterminate={isIndeterminate}
-              checked={isAllSelected}
-              onChange={(event) => onSelectAllRows(event.target.checked)}
-              slotProps={{
-                input: {
-                  id: 'all-row-checkbox',
-                  'aria-label': 'Select all rows',
-                },
-              }}
-            />
-          </TableCell>
-        )}
-
-        {headCells.map((headCell) => (
-          <TableCell
-            key={headCell.id}
-            align={headCell.align || 'left'}
-            sortDirection={orderBy === headCell.id ? order : false}
-            sx={[
-              { width: headCell.width },
-              ...(Array.isArray(headCell.sx) ? headCell.sx : [headCell.sx]),
-            ]}
-          >
-            {onSort ? (
-              <TableSortLabel
-                hideSortIcon
-                active={orderBy === headCell.id}
-                direction={orderBy === headCell.id ? order : 'asc'}
-                onClick={() => onSort(headCell.id)}
-              >
-                {headCell.label}
-                {orderBy === headCell.id && (
-                  <Box component="span" sx={visuallyHidden}>
-                    {order === 'desc' ? 'sorted descending' : 'sorted ascending'}
-                  </Box>
-                )}
-              </TableSortLabel>
-            ) : (
-              headCell.label
-            )}
-          </TableCell>
-        ))}
-      </TableRow>
-    </TableHead>
-  );
-}
-
-function TablePaginationCustom({
-  sx,
-  dense,
-  onChangeDense,
-  rowsPerPageOptions = [5, 10, 25],
-  ...other
-}: TablePaginationCustomProps) {
-  return (
-    <Box sx={[{ position: 'relative' }, ...(Array.isArray(sx) ? sx : [sx])]}>
-      <TablePagination
-        rowsPerPageOptions={rowsPerPageOptions}
-        component="div"
-        {...other}
-        sx={{ borderTopColor: 'transparent' }}
-      />
-
-      {onChangeDense && (
-        <FormControlLabel
-          label="Dense"
-          control={
-            <Switch
-              checked={dense}
-              onChange={onChangeDense}
-              slotProps={{ input: { id: 'dense-switch' } }}
-            />
-          }
-          sx={{
-            pl: 2,
-            py: 1.5,
-            top: 0,
-            position: { sm: 'absolute' },
-          }}
-        />
-      )}
-    </Box>
-  );
-}
-
-// ----------------------------------------------------------------------
-// MAIN COMPONENT
 // ----------------------------------------------------------------------
 
 export function UsuarioTableView() {
-  const table = useTable();
   const confirmDialog = useBoolean();
+  const toolbarOptions = useToolbarSettings();
+  const { products, productsLoading } = useGetProducts();
 
-  const [tableData, setTableData] = useState<Usuario[]>(USUARIOS_PRUEBA);
-
-  const filters = useSetState<IUserTableFilters>({
-    name: '',
-    role: [],
-    status: 'all'
+  const [tableData, setTableData] = useState<IProductItem[]>(products);
+  const [selectedRows, setSelectedRows] = useState<GridRowSelectionModel>({
+    type: 'include',
+    ids: new Set(),
   });
-  const { state: currentFilters, setState: updateFilters } = filters;
 
-  // Memoized computations
-  const dataFiltered = useMemo(() =>
-    applyFilter({
-      inputData: tableData,
-      comparator: getComparator(table.order, table.orderBy),
-      filters: currentFilters,
-    }),
-    [tableData, table.order, table.orderBy, currentFilters]
-  );
+  const filters = useSetState<IProductTableFilters>({
+    publish: [],
+    stock: [],
+  });
 
-  const dataInPage = useMemo(() =>
-    rowInPage(dataFiltered, table.page, table.rowsPerPage),
-    [dataFiltered, table.page, table.rowsPerPage]
-  );
+  const [columnVisibilityModel, setColumnVisibilityModel] =
+    useState<GridColumnVisibilityModel>(HIDE_COLUMNS);
 
-  const canReset = useMemo(() =>
-    !!currentFilters.name ||
-    currentFilters.role.length > 0 ||
-    currentFilters.status !== 'all',
-    [currentFilters]
-  );
+  useEffect(() => {
+    setTableData(products);
+  }, [products]);
 
-  const notFound = !dataFiltered.length && (canReset || !tableData.length);
-  const emptyRowsCount = emptyRows(table.page, table.rowsPerPage, dataFiltered.length);
-  const rowHeight = table.dense ? TABLE_CONFIG.rowHeights.dense : TABLE_CONFIG.rowHeights.normal;
+  const canReset = filters.state.publish.length > 0 || filters.state.stock.length > 0;
 
-  // Event handlers
-  const handleDeleteRow = useCallback((uuid: string) => {
-    setTableData(prev => prev.filter(row => row.uuid !== uuid));
-    toast.success('¡Eliminado con éxito!');
-    table.onUpdatePageDeleteRow(dataInPage.length);
-  }, [dataInPage.length, table]);
+  const dataFiltered = applyFilter({
+    inputData: tableData,
+    filters: filters.state,
+  });
+
+  const handleDeleteRow = useCallback((id: string) => {
+    setTableData((prev) => prev.filter((row) => row.id !== id));
+    toast.success('Delete success!');
+  }, []);
 
   const handleDeleteRows = useCallback(() => {
-    setTableData(prev => prev.filter(row => !table.selected.includes(row.uuid)));
-    toast.success('¡Eliminado con éxito!');
-    table.onUpdatePageDeleteRows(dataInPage.length, dataFiltered.length);
-    confirmDialog.onFalse();
-  }, [dataFiltered.length, dataInPage.length, table, confirmDialog]);
+    setTableData((prev) => prev.filter((row) => !selectedRows.ids.has(row.id)));
+    toast.success('Delete success!');
+  }, [selectedRows.ids]);
 
-  const handleFilterStatus = useCallback((event: React.SyntheticEvent, newValue: string) => {
-    table.onResetPage();
-    updateFilters({ status: newValue });
-  }, [updateFilters, table]);
+  const columns = useGetColumns({ onDeleteRow: handleDeleteRow });
+
+  const renderConfirmDialog = () => (
+    <ConfirmDialog
+      open={confirmDialog.value}
+      onClose={confirmDialog.onFalse}
+      title="Delete"
+      content={
+        <>
+          Are you sure want to delete <strong> {selectedRows.ids.size} </strong> items?
+        </>
+      }
+      action={
+        <Button
+          variant="contained"
+          color="error"
+          onClick={() => {
+            handleDeleteRows();
+            confirmDialog.onFalse();
+          }}
+        >
+          Delete
+        </Button>
+      }
+    />
+  );
 
   return (
     <>
-      <DashboardContent>
+      <DashboardContent sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column' }}>
         <Box sx={{ mb: { xs: 1, md: 2 } }}>
           <Typography variant="h5">Lista de Usuarios</Typography>
         </Box>
 
-        <Card>
-          <Tabs
-            value={currentFilters.status}
-            onChange={handleFilterStatus}
-            sx={theme => ({
-              px: { md: 2.5 },
-              boxShadow: `inset 0 -2px 0 0 ${varAlpha(theme.vars.palette.grey['500Channel'], 0.08)}`,
-            })}
-          >
-            {ESTADO_USUARIO.map((tab) => (
-              <Tab
-                key={tab.value}
-                iconPosition="end"
-                value={tab.value}
-                label={tab.label}
-                icon={
-                  <Label
-                    variant={tab.value === currentFilters.status ? 'filled' : 'soft'}
-                    color={tab.color}
-                  >
-                    {tab.value === 'all'
-                      ? tableData.length
-                      : tableData.filter(user => user.estado === tab.value).length
-                    }
-                  </Label>
-                }
-              />
-            ))}
-          </Tabs>
-
-          <UsuarioTableToolbar
-            filters={filters}
-            onResetPage={table.onResetPage}
-            options={{ tipoUsuario: TIPO_USUARIO_OPTIONS }}
-          />
-
-          <Box sx={{ position: 'relative' }}>
-            <Scrollbar>
-              <Table
-                size={table.dense ? 'small' : 'medium'}
-                sx={{ minWidth: TABLE_CONFIG.minWidth }}
-              >
-                <TableHeadCustom
-                  order={table.order}
-                  orderBy={table.orderBy}
-                  headCells={TABLE_HEAD}
-                  rowCount={dataFiltered.length}
-                  numSelected={table.selected.length}
-                  onSort={table.onSort}
+        <Card
+          sx={{
+            minHeight: 640,
+            flexGrow: { md: 1 },
+            display: { md: 'flex' },
+            height: { xs: 800, md: '1px' },
+            flexDirection: { md: 'column' },
+          }}
+        >
+          <DataGrid
+            {...toolbarOptions.settings}
+            checkboxSelection
+            disableRowSelectionOnClick
+            rows={dataFiltered}
+            columns={columns}
+            loading={productsLoading}
+            getRowHeight={() => 'auto'}
+            pageSizeOptions={[5, 10, 20, { value: -1, label: 'All' }]}
+            initialState={{ pagination: { paginationModel: { pageSize: 10 } } }}
+            columnVisibilityModel={columnVisibilityModel}
+            onColumnVisibilityModelChange={(newModel) => setColumnVisibilityModel(newModel)}
+            onRowSelectionModelChange={(newSelectionModel) => setSelectedRows(newSelectionModel)}
+            slots={{
+              noRowsOverlay: () => <EmptyContent />,
+              noResultsOverlay: () => <EmptyContent title="No results found" />,
+              toolbar: () => (
+                <ProductTableToolbar
+                  filters={filters}
+                  canReset={canReset}
+                  filteredResults={dataFiltered.length}
+                  selectedRowCount={selectedRows.ids.size}
+                  onOpenConfirmDeleteRows={confirmDialog.onTrue}
+                  options={{ stocks: PRODUCT_STOCK_OPTIONS, publishs: PUBLISH_OPTIONS }}
+                  /********/
+                  settings={toolbarOptions.settings}
+                  onChangeSettings={toolbarOptions.onChangeSettings}
                 />
-
-                <TableBody>
-                  {dataFiltered
-                    .slice(
-                      table.page * table.rowsPerPage,
-                      table.page * table.rowsPerPage + table.rowsPerPage
-                    )
-                    .map((row) => (
-                      <UserTableRow
-                        key={row.uuid}
-                        row={row}
-                        selected={table.selected.includes(row.uuid)}
-                        onSelectRow={() => table.onSelectRow(row.uuid)}
-                        onDeleteRow={() => handleDeleteRow(row.uuid)}
-                        editHref={paths.seguridad.user.edit(row.uuid)}
-                      />
-                    ))}
-
-                  {/* Filas vacías para mantener altura constante */}
-                  {emptyRowsCount > 0 && (
-                    <TableRow sx={{ height: rowHeight * emptyRowsCount }}>
-                      <TableCell colSpan={TABLE_CONFIG.colSpan} />
-                    </TableRow>
-                  )}
-
-                  {/* Estado sin datos */}
-                  {notFound && (
-                    <TableRow>
-                      <TableCell colSpan={TABLE_CONFIG.colSpan}>
-                        <EmptyContent filled sx={{ py: 10 }} />
-                      </TableCell>
-                    </TableRow>
-                  )}
-                </TableBody>
-              </Table>
-            </Scrollbar>
-          </Box>
-
-          <TablePaginationCustom
-            page={table.page}
-            dense={table.dense}
-            count={dataFiltered.length}
-            rowsPerPage={table.rowsPerPage}
-            onPageChange={table.onChangePage}
-            onChangeDense={table.onChangeDense}
-            onRowsPerPageChange={table.onChangeRowsPerPage}
+              ),
+            }}
+            slotProps={{
+              columnsManagement: {
+                getTogglableColumns: () =>
+                  columns
+                    .filter((col) => !HIDE_COLUMNS_TOGGLABLE.includes(col.field))
+                    .map((col) => col.field),
+              },
+            }}
+            sx={{
+              [`& .${gridClasses.cell}`]: {
+                display: 'flex',
+                alignItems: 'center',
+              },
+            }}
           />
         </Card>
       </DashboardContent>
 
-      <ConfirmDialog
-        open={confirmDialog.value}
-        onClose={confirmDialog.onFalse}
-        title="Eliminar"
-        content={
-          <>
-            ¿Estás seguro de que deseas eliminar <strong>{table.selected.length}</strong> ítems?
-          </>
-        }
-        action={
-          <Button variant="contained" color="error" onClick={handleDeleteRows}>
-            Eliminar
-          </Button>
-        }
-      />
+      {renderConfirmDialog()}
     </>
   );
+}
+
+type UseGetColumnsProps = {
+  onDeleteRow: (id: string) => void;
+};
+
+const useGetColumns = ({ onDeleteRow }: UseGetColumnsProps) => {
+  const theme = useTheme();
+
+  const columns: GridColDef[] = useMemo(
+    () => [
+      {
+        field: 'category',
+        headerName: 'Category',
+        filterable: false,
+      },
+      {
+        field: 'name',
+        headerName: 'Product',
+        flex: 1,
+        minWidth: 360,
+        hideable: false,
+        renderCell: (params) => (
+          <RenderCellProduct
+            params={params}
+            href={paths.product.details(params.row.id)}
+          />
+        ),
+      },
+      {
+        field: 'createdAt',
+        headerName: 'Create at',
+        width: 160,
+        renderCell: (params) => <RenderCellCreatedAt params={params} />,
+      },
+      {
+        field: 'inventoryType',
+        headerName: 'Stock',
+        width: 160,
+        type: 'singleSelect',
+        filterable: false,
+        valueOptions: PRODUCT_STOCK_OPTIONS,
+        renderCell: (params) => <RenderCellStock params={params} />,
+      },
+      {
+        field: 'price',
+        headerName: 'Price',
+        width: 120,
+        editable: true,
+        renderCell: (params) => <RenderCellPrice params={params} />,
+      },
+      {
+        field: 'publish',
+        headerName: 'Publish',
+        width: 120,
+        type: 'singleSelect',
+        editable: true,
+        filterable: false,
+        valueOptions: PUBLISH_OPTIONS,
+        renderCell: (params) => <RenderCellPublish params={params} />,
+      },
+      {
+        type: 'actions',
+        field: 'actions',
+        headerName: ' ',
+        width: 64,
+        align: 'right',
+        headerAlign: 'right',
+        sortable: false,
+        filterable: false,
+        disableColumnMenu: true,
+        getActions: (params) => [
+          <CustomGridActionsCellItem
+            showInMenu
+            label="View"
+            icon={<Iconify icon="solar:eye-bold" />}
+            href={paths.product.details(params.row.id)}
+          />,
+          <CustomGridActionsCellItem
+            showInMenu
+            label="Edit"
+            icon={<Iconify icon="solar:pen-bold" />}
+            href={paths.product.edit(params.row.id)}
+          />,
+          <CustomGridActionsCellItem
+            showInMenu
+            label="Delete"
+            icon={<Iconify icon="solar:trash-bin-trash-bold" />}
+            onClick={() => onDeleteRow(params.row.id)}
+            style={{ color: theme.vars.palette.error.main }}
+          />,
+        ],
+      },
+    ],
+    [onDeleteRow, theme.vars.palette.error.main]
+  );
+
+  return columns;
+};
+
+// ----------------------------------------------------------------------
+
+type ApplyFilterProps = {
+  inputData: IProductItem[];
+  filters: IProductTableFilters;
+};
+
+function applyFilter({ inputData, filters }: ApplyFilterProps) {
+  const { stock, publish } = filters;
+
+  if (stock.length) {
+    inputData = inputData.filter((product) => stock.includes(product.inventoryType));
+  }
+
+  if (publish.length) {
+    inputData = inputData.filter((product) => publish.includes(product.publish));
+  }
+
+  return inputData;
 }

@@ -70,7 +70,7 @@ export const navData: NavSectionProps['data'] = [
     items: [
       {
         title: 'Usuarios',
-        path: paths.seguridad.usuarios,
+        path: paths.seguridad.usuario.root,
         icon: ICONS.user
       },
       {

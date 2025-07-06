@@ -59,7 +59,12 @@ export const paths = {
   },
   seguridad: {
     root: ROOTS.SEGURIDAD,
-    usuarios: `${ROOTS.SEGURIDAD}/usuarios`,
+    usuario: {
+      root: `${ROOTS.SEGURIDAD}/usuario`,
+      nuevo: `${ROOTS.SEGURIDAD}/usuario/nuevo`,
+      detalle: (id: string) => `${ROOTS.SEGURIDAD}/usuario/${id}`,
+      editar: (id: string) => `${ROOTS.SEGURIDAD}/usuario/${id}/edit`
+    },
     user: {
       root: `${ROOTS.SEGURIDAD}/user`,
       new: `${ROOTS.SEGURIDAD}/user/new`,
