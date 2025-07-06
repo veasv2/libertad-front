@@ -86,7 +86,7 @@ export function ResultItem({ title, path, labels, href, sx, ...other }: Props) {
 
       <Box sx={{ gap: 0.75, display: 'flex' }}>
         {[...labels].reverse().map((label) => (
-          <Label key={label} color="primary">
+          <Label key={label} color="default">
             {label}
           </Label>
         ))}

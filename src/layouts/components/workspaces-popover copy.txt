@@ -96,7 +96,7 @@ export function WorkspacesPopover({ data = [], sx, ...other }: WorkspacesPopover
       </Box>
 
       <Label
-        color={workspace?.plan === 'Free' ? 'primary' : 'info'}
+        color={workspace?.plan === 'Free' ? 'default' : 'info'}
         sx={{
           height: 22,
           cursor: 'inherit',
@@ -140,7 +140,7 @@ export function WorkspacesPopover({ data = [], sx, ...other }: WorkspacesPopover
                 {option.name}
               </Typography>
 
-              <Label color={option.plan === 'Free' ? 'primary' : 'info'}>{option.plan}</Label>
+              <Label color={option.plan === 'Free' ? 'default' : 'info'}>{option.plan}</Label>
             </MenuItem>
           ))}
         </MenuList>

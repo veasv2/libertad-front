@@ -1,97 +1,168 @@
-import type { GridCellParams } from '@mui/x-data-grid';
-import type { LinearProgressProps } from '@mui/material/LinearProgress';
+import type { IUserItem } from 'src/types/user';
+
+import { useBoolean, usePopover } from 'minimal-shared/hooks';
 
 import Box from '@mui/material/Box';
 import Link from '@mui/material/Link';
+import Stack from '@mui/material/Stack';
+import Button from '@mui/material/Button';
 import Avatar from '@mui/material/Avatar';
-import ListItemText from '@mui/material/ListItemText';
-import LinearProgress from '@mui/material/LinearProgress';
+import Tooltip from '@mui/material/Tooltip';
+import MenuList from '@mui/material/MenuList';
+import MenuItem from '@mui/material/MenuItem';
+import TableRow from '@mui/material/TableRow';
+import Checkbox from '@mui/material/Checkbox';
+import TableCell from '@mui/material/TableCell';
+import IconButton from '@mui/material/IconButton';
 
 import { RouterLink } from 'src/routes/components';
 
-import { fCurrency } from 'src/utils/format-number';
-import { fTime, fDate } from 'src/utils/format-time';
-
 import { Label } from 'src/components/label';
+import { Iconify } from 'src/components/iconify';
+import { ConfirmDialog } from 'src/components/custom-dialog';
+import { CustomPopover } from 'src/components/custom-popover';
 
-// ----------------------------------------------------------------------
+import type { Usuario } from 'src/models/seguridad/usuario';
+import { fTime, fDate } from 'src/utils/format-time';
+import { EstadoUsuario, TipoUsuario } from 'src/types/enums/usuario-enum';
 
-type ParamsProps = {
-  params: GridCellParams;
+type Props = {
+  row: Usuario;
+  selected: boolean;
+  editHref: string;
+  onSelectRow: () => void;
+  onDeleteRow: () => void;
 };
 
-export function RenderCellPrice({ params }: ParamsProps) {
-  return fCurrency(params.row.price);
-}
+export function UserTableRow({ row, selected, editHref, onSelectRow, onDeleteRow }: Props) {
+  const menuActions = usePopover();
+  const confirmDialog = useBoolean();
+  const quickEditForm = useBoolean();
 
-export function RenderCellPublish({ params }: ParamsProps) {
-  return (
-    <Label variant="soft" color={params.row.publish === 'published' ? 'info' : 'default'}>
-      {params.row.publish}
-    </Label>
-  );
-}
-
-export function RenderCellCreatedAt({ params }: ParamsProps) {
-  return (
-    <Box sx={{ gap: 0.5, display: 'flex', flexDirection: 'column' }}>
-      <span>{fDate(params.row.createdAt)}</span>
-      <Box component="span" sx={{ typography: 'caption', color: 'text.secondary' }}>
-        {fTime(params.row.createdAt)}
-      </Box>
-    </Box>
-  );
-}
-
-export function RenderCellStock({ params }: ParamsProps) {
-  const color: LinearProgressProps['color'] =
-    (params.row.inventoryType === 'out of stock' && 'error') ||
-    (params.row.inventoryType === 'low stock' && 'warning') ||
-    'success';
-
-  return (
-    <Box sx={{ width: 1, typography: 'caption', color: 'text.secondary' }}>
-      <LinearProgress
-        color={color}
-        variant="determinate"
-        value={(params.row.available * 100) / params.row.quantity}
-        sx={[{ mb: 1, width: 80, height: 6 }]}
-      />
-      {!!params.row.available && params.row.available} {params.row.inventoryType}
-    </Box>
-  );
-}
-
-export function RenderCellProduct({ params, href }: ParamsProps & { href: string }) {
-  return (
-    <Box
-      sx={{
-        py: 2,
-        gap: 2,
-        width: 1,
-        display: 'flex',
-        alignItems: 'center',
-      }}
+  const renderMenuActions = () => (
+    <CustomPopover
+      open={menuActions.open}
+      anchorEl={menuActions.anchorEl}
+      onClose={menuActions.onClose}
+      slotProps={{ arrow: { placement: 'right-top' } }}
     >
-      <Avatar
-        alt={params.row.name}
-        src={params.row.coverUrl}
-        variant="rounded"
-        sx={{ width: 64, height: 64 }}
-      />
+      <MenuList>
+        <li>
+          <MenuItem component={RouterLink} href={editHref} onClick={() => menuActions.onClose()}>
+            <Iconify icon="solar:eye-bold" />
+            Ver
+          </MenuItem>
+        </li>
+        <li>
+          <MenuItem component={RouterLink} href={editHref} onClick={() => menuActions.onClose()}>
+            <Iconify icon="solar:pen-bold" />
+            Editar
+          </MenuItem>
+        </li>
 
-      <ListItemText
-        primary={
-          <Link component={RouterLink} href={href} color="inherit">
-            {params.row.name}
-          </Link>
-        }
-        secondary={params.row.category}
-        slotProps={{
-          primary: { noWrap: true },
-          secondary: { sx: { color: 'text.disabled' } },
-        }}
-      />
-    </Box>
+        <MenuItem
+          onClick={() => {
+            confirmDialog.onTrue();
+            menuActions.onClose();
+          }}
+          sx={{ color: 'error.main' }}
+        >
+          <Iconify icon="solar:trash-bin-trash-bold" />
+          Eliminar
+        </MenuItem>
+      </MenuList>
+    </CustomPopover>
+  );
+
+  const renderConfirmDialog = () => (
+    <ConfirmDialog
+      open={confirmDialog.value}
+      onClose={confirmDialog.onFalse}
+      title="Delete"
+      content="Are you sure want to delete?"
+      action={
+        <Button variant="contained" color="error" onClick={onDeleteRow}>
+          Eliminar
+        </Button>
+      }
+    />
+  );
+
+  return (
+    <>
+      <TableRow hover selected={selected} aria-checked={selected} tabIndex={-1}>
+
+
+        <TableCell id="dni_email">
+          <Box sx={{ gap: 2, display: 'flex', alignItems: 'center' }}>
+            <Avatar alt={row.dni} src={row.email} />
+
+            <Stack sx={{ typography: 'body2', flex: '1 1 auto', alignItems: 'flex-start' }}>
+              <Link
+                component={RouterLink}
+                href={editHref}
+                color="inherit"
+                sx={{ cursor: 'pointer' }}
+              >
+                {row.dni}
+              </Link>
+              <Box component="span" sx={{ color: 'text.disabled' }}>
+                {row.email}
+              </Box>
+            </Stack>
+          </Box>
+        </TableCell>
+        <TableCell>
+          <Box sx={{ gap: 0.5, display: 'flex', flexDirection: 'column' }}>
+            <span>{row.nombres}</span>
+            <Box component="span" sx={{ typography: 'body2', color: 'text.secondary' }}>
+              {row.apellido_paterno + " " + row.apellido_materno}
+            </Box>
+          </Box>
+        </TableCell>
+
+        <TableCell sx={{ whiteSpace: 'nowrap' }}>{row.telefono}</TableCell>
+
+        <TableCell>
+          <Label
+            variant="soft"
+            color={TipoUsuario[row.tipo].color}
+          >
+            {row.tipo}
+          </Label>
+        </TableCell>
+        <TableCell>
+          <Label
+            variant="soft"
+            color={EstadoUsuario[row.estado].color}
+          >
+            {row.estado}
+          </Label>
+        </TableCell>
+        <TableCell>
+          <Box sx={{ gap: 0.5, display: 'flex', flexDirection: 'column' }}>
+            <span>{row.ultimo_acceso && fDate(row.ultimo_acceso)}</span>
+            <Box component="span" sx={{ typography: 'caption', color: 'text.secondary' }}>
+              {row.ultimo_acceso && fTime(row.ultimo_acceso)}
+            </Box>
+          </Box>
+        </TableCell>
+
+        <TableCell>
+          <Box sx={{ display: 'flex', alignItems: 'center' }}>
+
+            <IconButton
+              color={menuActions.open ? 'inherit' : 'primary'}
+              onClick={menuActions.onOpen}
+            >
+              <Iconify icon="eva:more-vertical-fill" />
+            </IconButton>
+          </Box>
+        </TableCell>
+      </TableRow >
+
+      {renderMenuActions()}
+      {renderConfirmDialog()}
+    </>
   );
 }

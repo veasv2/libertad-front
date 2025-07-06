@@ -16,7 +16,7 @@ export function Label({
   className,
   disabled,
   variant = 'soft',
-  color = 'primary',
+  color = 'default',
   ...other
 }: LabelProps) {
   return (

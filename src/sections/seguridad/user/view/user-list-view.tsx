@@ -189,7 +189,7 @@ export function UserListView() {
                       (tab.value === 'active' && 'success') ||
                       (tab.value === 'pending' && 'warning') ||
                       (tab.value === 'banned' && 'error') ||
-                      'default'
+                      'primary'
                     }
                   >
                     {['active', 'pending', 'banned', 'rejected'].includes(tab.value)

@@ -99,7 +99,11 @@ export function NotificationsDrawer({ data = [], sx, ...other }: NotificationsDr
           icon={
             <Label
               variant={((tab.value === 'all' || tab.value === currentTab) && 'filled') || 'soft'}
-              color='primary'
+              color={
+                (tab.value === 'unread' && 'info') ||
+                (tab.value === 'archived' && 'success') ||
+                'default'
+              }
             >
               {tab.count}
             </Label>
