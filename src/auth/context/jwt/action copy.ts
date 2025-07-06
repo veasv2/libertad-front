@@ -23,21 +23,23 @@ export type SignUpParams = {
  * Sign in
  *************************************** */
 export const signInWithPassword = async ({ email, password }: SignInParams): Promise<void> => {
-  const validEmail = 'demo@minimals.cc';
-  const validPassword = '@2Minimal';
+  try {
+    const params = { email, password };
 
-  return new Promise((resolve, reject) => {
-    setTimeout(() => {
-      if (email === validEmail && password === validPassword) {
-        const fakeToken = 'fake-jwt-token';
-        setSession(fakeToken); // Guarda el token en sessionStorage y configura axios si quieres
-        resolve();
-      } else {
-        reject(new Error('Correo o contraseña incorrectos'));
-      }
-    }, 500); // Simula una latencia de red
-  });
-}
+    const res = await axios.post(endpoints.auth.signIn, params);
+
+    const { accessToken } = res.data;
+
+    if (!accessToken) {
+      throw new Error('Access token not found in response');
+    }
+
+    setSession(accessToken);
+  } catch (error) {
+    console.error('Error during sign in:', error);
+    throw error;
+  }
+};
 
 /** **************************************
  * Sign up

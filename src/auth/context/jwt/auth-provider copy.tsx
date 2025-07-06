@@ -33,16 +33,11 @@ export function AuthProvider({ children }: Props) {
       if (accessToken && isValidToken(accessToken)) {
         setSession(accessToken);
 
-        // ⚠️ Aquí simulas el "usuario" en vez de llamar al backend
-        const user = {
-          id: 1,
-          email: 'demo@minimals.cc',
-          name: 'Usuario Demo',
-          role: 'admin',
-          accessToken,
-        };
+        const res = await axios.get(endpoints.auth.me);
 
-        setState({ user, loading: false });
+        const { user } = res.data;
+
+        setState({ user: { ...user, accessToken }, loading: false });
       } else {
         setState({ user: null, loading: false });
       }

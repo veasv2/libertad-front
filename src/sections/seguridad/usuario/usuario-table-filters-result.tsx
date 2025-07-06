@@ -1,8 +1,9 @@
 import type { UseSetStateReturn } from 'minimal-shared/hooks';
-import type { IUserTableFilters } from 'src/types/user';
+import type { IProductTableFilters } from 'src/types/product';
 import type { FiltersResultProps } from 'src/components/filters-result';
 
 import { useCallback } from 'react';
+import { upperFirst } from 'es-toolkit';
 
 import Chip from '@mui/material/Chip';
 
@@ -11,57 +12,52 @@ import { chipProps, FiltersBlock, FiltersResult } from 'src/components/filters-r
 // ----------------------------------------------------------------------
 
 type Props = FiltersResultProps & {
-  onResetPage: () => void;
-  filters: UseSetStateReturn<IUserTableFilters>;
+  filters: UseSetStateReturn<IProductTableFilters>;
 };
 
-export function UserTableFiltersResult({ filters, onResetPage, totalResults, sx }: Props) {
+export function ProductTableFiltersResult({ filters, totalResults, sx }: Props) {
   const { state: currentFilters, setState: updateFilters, resetState: resetFilters } = filters;
 
-  const handleRemoveKeyword = useCallback(() => {
-    onResetPage();
-    updateFilters({ name: '' });
-  }, [onResetPage, updateFilters]);
-
-  const handleRemoveStatus = useCallback(() => {
-    onResetPage();
-    updateFilters({ status: 'all' });
-  }, [onResetPage, updateFilters]);
-
-  const handleRemoveRole = useCallback(
+  const handleRemoveStock = useCallback(
     (inputValue: string) => {
-      const newValue = currentFilters.role.filter((item) => item !== inputValue);
+      const newValue = currentFilters.stock.filter((item) => item !== inputValue);
 
-      onResetPage();
-      updateFilters({ role: newValue });
+      updateFilters({ stock: newValue });
     },
-    [onResetPage, updateFilters, currentFilters.role]
+    [updateFilters, currentFilters.stock]
   );
 
-  const handleReset = useCallback(() => {
-    onResetPage();
-    resetFilters();
-  }, [onResetPage, resetFilters]);
+  const handleRemovePublish = useCallback(
+    (inputValue: string) => {
+      const newValue = currentFilters.publish.filter((item) => item !== inputValue);
+
+      updateFilters({ publish: newValue });
+    },
+    [updateFilters, currentFilters.publish]
+  );
 
   return (
-    <FiltersResult totalResults={totalResults} onReset={handleReset} sx={sx}>
-      <FiltersBlock label="Status:" isShow={currentFilters.status !== 'all'}>
-        <Chip
-          {...chipProps}
-          label={currentFilters.status}
-          onDelete={handleRemoveStatus}
-          sx={{ textTransform: 'capitalize' }}
-        />
-      </FiltersBlock>
-
-      <FiltersBlock label="Role:" isShow={!!currentFilters.role.length}>
-        {currentFilters.role.map((item) => (
-          <Chip {...chipProps} key={item} label={item} onDelete={() => handleRemoveRole(item)} />
+    <FiltersResult totalResults={totalResults} onReset={() => resetFilters()} sx={sx}>
+      <FiltersBlock label="Stock:" isShow={!!currentFilters.stock.length}>
+        {currentFilters.stock.map((item) => (
+          <Chip
+            {...chipProps}
+            key={item}
+            label={upperFirst(item)}
+            onDelete={() => handleRemoveStock(item)}
+          />
         ))}
       </FiltersBlock>
 
-      <FiltersBlock label="Keyword:" isShow={!!currentFilters.name}>
-        <Chip {...chipProps} label={currentFilters.name} onDelete={handleRemoveKeyword} />
+      <FiltersBlock label="Publish:" isShow={!!currentFilters.publish.length}>
+        {currentFilters.publish.map((item) => (
+          <Chip
+            {...chipProps}
+            key={item}
+            label={upperFirst(item)}
+            onDelete={() => handleRemovePublish(item)}
+          />
+        ))}
       </FiltersBlock>
     </FiltersResult>
   );
