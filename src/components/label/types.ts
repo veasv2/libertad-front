@@ -10,7 +10,7 @@ export type LabelVariant = 'filled' | 'outlined' | 'soft' | 'inverted';
 export interface LabelProps extends React.ComponentProps<'span'> {
   sx?: SxProps<Theme>;
   disabled?: boolean;
-  color?: LabelColor;
+  color?: PaletteColorKey;
   variant?: LabelVariant;
   endIcon?: React.ReactNode;
   startIcon?: React.ReactNode;

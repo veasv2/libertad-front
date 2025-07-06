@@ -21,15 +21,14 @@ import { Iconify } from 'src/components/iconify';
 import { CustomPopover } from 'src/components/custom-popover';
 import { RouterLink } from 'src/routes/components';
 import { paths } from 'src/routes/paths';
+import { TIPO_USUARIO_OPTIONS } from 'src/types/enums/usuario-enum';
 
 // ----------------------------------------------------------------------
 
 type Props = {
   onResetPage: () => void;
   filters: UseSetStateReturn<IUserTableFilters>;
-  options: {
-    roles: string[];
-  };
+  options: {};
 };
 
 export function UsuarioTableToolbar({ filters, options, onResetPage }: Props) {
@@ -49,7 +48,6 @@ export function UsuarioTableToolbar({ filters, options, onResetPage }: Props) {
     (event: SelectChangeEvent<string[]>) => {
       const newValue =
         typeof event.target.value === 'string' ? event.target.value.split(',') : event.target.value;
-
       onResetPage();
       updateFilters({ role: newValue });
     },
@@ -66,17 +64,17 @@ export function UsuarioTableToolbar({ filters, options, onResetPage }: Props) {
       <MenuList>
         <MenuItem onClick={() => menuActions.onClose()}>
           <Iconify icon="solar:printer-minimalistic-bold" />
-          Print
+          Imprimir
         </MenuItem>
 
         <MenuItem onClick={() => menuActions.onClose()}>
           <Iconify icon="solar:import-bold" />
-          Import
+          Importar
         </MenuItem>
 
         <MenuItem onClick={() => menuActions.onClose()}>
           <Iconify icon="solar:export-bold" />
-          Export
+          Exportar
         </MenuItem>
       </MenuList>
     </CustomPopover>
@@ -94,26 +92,26 @@ export function UsuarioTableToolbar({ filters, options, onResetPage }: Props) {
           alignItems: { xs: 'flex-end', md: 'center' },
         }}
       >
-        <FormControl sx={{ flexShrink: 0, width: { xs: 1, md: 200 } }}>
-          <InputLabel htmlFor="filter-role-select">Role</InputLabel>
+        <FormControl sx={{ flexShrink: 0, width: { xs: 1, md: 250 } }}>
+          <InputLabel htmlFor="filter-role-select">Tipo de Usuario</InputLabel>
           <Select
             multiple
-            label="Role"
+            label="Tipo de Usuario"
             value={currentFilters.role}
             onChange={handleFilterRole}
             renderValue={(selected) => selected.map((value) => value).join(', ')}
             inputProps={{ id: 'filter-role-select' }}
             MenuProps={{ PaperProps: { sx: { maxHeight: 240 } } }}
           >
-            {options.roles.map((option) => (
-              <MenuItem key={option} value={option}>
+            {TIPO_USUARIO_OPTIONS.map((option) => (
+              <MenuItem key={option.value} value={option.label}>
                 <Checkbox
                   disableRipple
                   size="small"
-                  checked={currentFilters.role.includes(option)}
-                  slotProps={{ input: { id: `${option}-checkbox` } }}
+                  checked={currentFilters.role.includes(option.label)}
+                  slotProps={{ input: { id: `${option.label}-checkbox` } }}
                 />
-                {option}
+                {option.label}
               </MenuItem>
             ))}
           </Select>
@@ -133,7 +131,7 @@ export function UsuarioTableToolbar({ filters, options, onResetPage }: Props) {
             fullWidth
             value={currentFilters.name}
             onChange={handleFilterName}
-            placeholder="Search..."
+            placeholder="Buscar..."
             slotProps={{
               input: {
                 startAdornment: (
