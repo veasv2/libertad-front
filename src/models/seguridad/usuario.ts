@@ -1,3 +1,5 @@
+// src/models/seguridad/usuario.ts
+
 import { TipoUsuarioValue, EstadoUsuarioValue } from 'src/types/enums/usuario-enum';
 
 export interface Usuario {

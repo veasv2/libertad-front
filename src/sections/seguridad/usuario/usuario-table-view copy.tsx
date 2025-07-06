@@ -45,14 +45,13 @@ import {
   TablePaginationCustom,
 } from 'src/components/table';
 
-import { UserTableRow } from './usuario-table-row';
+import { UsuarioTableRow } from './usuario-table-row';
 import { UsuarioTableToolbar } from './usuario-table-toolbar';
 
 const ESTADO_USUARIO = [
   { value: 'all', label: 'Todos', color: 'default' as PaletteColorKey },
   ...ESTADO_USUARIO_OPTIONS
 ];
-
 
 const TABLE_HEAD: TableHeadCellProps[] = [
   { id: 'dni_email', label: 'Usuario' },
@@ -68,7 +67,6 @@ export function UsuarioTableView() {
   const table = useTable();
 
   const confirmDialog = useBoolean();
-
   const [tableData, setTableData] = useState<Usuario[]>(USUARIOS_PRUEBA);
 
   const filters = useSetState<IUserTableFilters>({ name: '', role: [], status: 'all' });
@@ -87,60 +85,12 @@ export function UsuarioTableView() {
 
   const notFound = (!dataFiltered.length && canReset) || !dataFiltered.length;
 
-  const handleDeleteRow = useCallback(
-    (uuid: string) => {
-      const deleteRow = tableData.filter((row) => row.uuid !== uuid);
-
-      toast.success('¡Eliminado con éxito!');
-
-      setTableData(deleteRow);
-
-      table.onUpdatePageDeleteRow(dataInPage.length);
-    },
-    [dataInPage.length, table, tableData]
-  );
-
-  const handleDeleteRows = useCallback(() => {
-    const deleteRows = tableData.filter((row) => !table.selected.includes(row.uuid));
-
-    toast.success('¡Eliminado con éxito!');
-
-    setTableData(deleteRows);
-
-    table.onUpdatePageDeleteRows(dataInPage.length, dataFiltered.length);
-  }, [dataFiltered.length, dataInPage.length, table, tableData]);
-
   const handleFilterStatus = useCallback(
     (event: React.SyntheticEvent, newValue: string) => {
       table.onResetPage();
       updateFilters({ status: newValue });
     },
     [updateFilters, table]
-  );
-
-  const renderConfirmDialog = () => (
-    <ConfirmDialog
-      open={confirmDialog.value}
-      onClose={confirmDialog.onFalse}
-      title="Eliminar"
-      content={
-        <>
-          ¿Estás seguro de que deseas eliminar <strong> {table.selected.length} </strong> ítems?
-        </>
-      }
-      action={
-        <Button
-          variant="contained"
-          color="error"
-          onClick={() => {
-            handleDeleteRows();
-            confirmDialog.onFalse();
-          }}
-        >
-          Eliminar
-        </Button>
-      }
-    />
   );
 
   return (
@@ -210,12 +160,11 @@ export function UsuarioTableView() {
                       table.page * table.rowsPerPage + table.rowsPerPage
                     )
                     .map((row) => (
-                      <UserTableRow
+                      <UsuarioTableRow
                         key={row.uuid}
                         row={row}
                         selected={table.selected.includes(row.uuid)}
                         onSelectRow={() => table.onSelectRow(row.uuid)}
-                        onDeleteRow={() => handleDeleteRow(row.uuid)}
                         editHref={paths.seguridad.user.edit(row.uuid)}
                       />
                     ))}
@@ -242,8 +191,6 @@ export function UsuarioTableView() {
           />
         </Card>
       </DashboardContent>
-
-      {renderConfirmDialog()}
     </>
   );
 }

@@ -14,6 +14,7 @@ import TableRow from '@mui/material/TableRow';
 import Checkbox from '@mui/material/Checkbox';
 import TableCell from '@mui/material/TableCell';
 import IconButton from '@mui/material/IconButton';
+import Divider from '@mui/material/Divider';
 
 import { RouterLink } from 'src/routes/components';
 
@@ -31,13 +32,11 @@ type Props = {
   selected: boolean;
   editHref: string;
   onSelectRow: () => void;
-  onDeleteRow: () => void;
 };
 
-export function UserTableRow({ row, selected, editHref, onSelectRow, onDeleteRow }: Props) {
+export function UsuarioTableRow({ row, selected, editHref, onSelectRow }: Props) {
   const menuActions = usePopover();
   const confirmDialog = useBoolean();
-  const quickEditForm = useBoolean();
 
   const renderMenuActions = () => (
     <CustomPopover
@@ -59,33 +58,13 @@ export function UserTableRow({ row, selected, editHref, onSelectRow, onDeleteRow
             Editar
           </MenuItem>
         </li>
-
-        <MenuItem
-          onClick={() => {
-            confirmDialog.onTrue();
-            menuActions.onClose();
-          }}
-          sx={{ color: 'error.main' }}
-        >
-          <Iconify icon="solar:trash-bin-trash-bold" />
+        <Divider />
+        <MenuItem component={RouterLink} href={editHref} onClick={() => menuActions.onClose()}>
+          <Iconify icon="solar:trash-bin-trash-bold" sx={{ color: 'error.main' }} />
           Eliminar
         </MenuItem>
       </MenuList>
     </CustomPopover>
-  );
-
-  const renderConfirmDialog = () => (
-    <ConfirmDialog
-      open={confirmDialog.value}
-      onClose={confirmDialog.onFalse}
-      title="Delete"
-      content="Are you sure want to delete?"
-      action={
-        <Button variant="contained" color="error" onClick={onDeleteRow}>
-          Eliminar
-        </Button>
-      }
-    />
   );
 
   return (
@@ -163,7 +142,6 @@ export function UserTableRow({ row, selected, editHref, onSelectRow, onDeleteRow
       </TableRow >
 
       {renderMenuActions()}
-      {renderConfirmDialog()}
     </>
   );
 }
