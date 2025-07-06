@@ -10,15 +10,6 @@ export function jwtDecode(token: string) {
   try {
     if (!token) return null;
 
-    // Permitir token fake
-    if (token === 'fake-jwt-token') {
-      // Devuelve un token decodificado simulado
-      return {
-        exp: Math.floor(Date.now() / 1000) + 60 * 60 * 24, // Expira en 24h
-        user: 'demo'
-      };
-    }
-
     const parts = token.split('.');
     if (parts.length < 2) {
       throw new Error('Invalid token!');
