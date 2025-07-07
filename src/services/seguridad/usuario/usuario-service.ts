@@ -1,3 +1,5 @@
+// src/services/seguridad/usuario/usuario-service.ts
+
 import { useGenericList, useGenericItem } from 'src/services/shared/use-generic-list';
 import { endpoints } from 'src/http/endpoints';
 import type { UsuarioListParams, UsuarioListResult, UsuarioWhere } from './usuario-types';

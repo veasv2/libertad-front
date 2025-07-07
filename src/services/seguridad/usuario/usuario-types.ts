@@ -1,3 +1,5 @@
+// src/services/seguridad/usuario/usuario-types.ts
+
 import type { StringFilter, EnumFilter } from 'src/types/filters';
 import type { ListParams, ApiResponse, ListResult, FilterPreset, Presets } from 'src/types/query';
 

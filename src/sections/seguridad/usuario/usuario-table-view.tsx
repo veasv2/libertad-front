@@ -1,3 +1,5 @@
+// src/sections/seguridad/usuario/usuario-table-view.tsx
+
 'use client';
 
 import { useState, useCallback, useMemo } from 'react';
@@ -14,7 +16,7 @@ import Table from '@mui/material/Table';
 import TableBody from '@mui/material/TableBody';
 import TablePagination from '@mui/material/TablePagination';
 import TableRow from '@mui/material/TableRow';
-import Checkbox from '@mui/material/Checkbox';
+import Skeleton from '@mui/material/Skeleton';
 import TableHead from '@mui/material/TableHead';
 import TableCell from '@mui/material/TableCell';
 import TableSortLabel from '@mui/material/TableSortLabel';
@@ -51,8 +53,18 @@ const ESTADO_USUARIO = [
   ...ESTADO_USUARIO_OPTIONS
 ];
 
+type TableHeaderCell = {
+  id: string;
+  label: string;
+  sort?: boolean;
+  width?: any;
+  hide?: any;
+  align?: 'left' | 'center' | 'right';
+};
+
+
 // ← TABLA HEADERS RESPONSIVA
-const TABLE_HEAD = [
+const TABLE_HEAD: TableHeaderCell[] = [
   { id: 'email', label: 'Usuario', sort: true },
   { id: 'nombres', label: 'Nombres', width: { xs: 120, sm: 150, md: 180 }, sort: true },
   { id: 'telefono', label: 'Teléfono', width: { xs: 90, sm: 100, md: 120 }, hide: { xs: true, sm: false } },
@@ -298,31 +310,6 @@ export function UsuarioTableView() {
                   }
                 }}>
                   <TableRow>
-                    {table.selected.length > 0 && (
-                      <TableCell padding="checkbox">
-                        <Checkbox
-                          indeterminate={table.selected.length > 0 && table.selected.length < total}
-                          checked={total > 0 && table.selected.length === total}
-                          onChange={(event) => {
-                            // Lógica para seleccionar/deseleccionar todos
-                            if (event.target.checked) {
-                              // Seleccionar todos los IDs de la página actual
-                              usuarios.forEach(user => table.onSelectRow(user.uuid));
-                            } else {
-                              // Deseleccionar todos
-                              table.onSelectAllRows([]);
-                            }
-                          }}
-                          slotProps={{
-                            input: {
-                              id: 'all-row-checkbox',
-                              'aria-label': 'All row Checkbox',
-                            },
-                          }}
-                        />
-                      </TableCell>
-                    )}
-
                     {TABLE_HEAD.map((headCell) => (
                       <TableCell
                         key={headCell.id}
@@ -356,26 +343,18 @@ export function UsuarioTableView() {
                 <TableBody>
                   {isLoading ? (
                     // ← Skeleton optimizado
-                    Array.from({ length: 5 }).map((_, index) => (
-                      <tr key={index} style={{ height: 73 }}>
-                        <td colSpan={TABLE_HEAD.length}>
-                          <Box sx={{
-                            p: 2,
-                            textAlign: 'center',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            height: '100%'
-                          }}>
-                            {index === 2 && (
-                              <Typography variant="body2" color="text.secondary">
-                                Cargando usuarios...
-                              </Typography>
-                            )}
-                          </Box>
-                        </td>
-                      </tr>
-                    ))
+                    Array.from({ length: 3 }).map((_, index) => (
+                      <TableRow key={index}>
+                        {TABLE_HEAD.map((_, cellIndex) => (
+                          <TableCell key={cellIndex}>
+                            <Box sx={{ width: '100%' }}>
+                              <Skeleton variant="text" />
+                            </Box>
+                          </TableCell>
+                        ))}
+                      </TableRow>
+                    )
+                    )
                   ) : (
                     usuarios.map((row) => (
                       <UsuarioTableRow
@@ -397,13 +376,10 @@ export function UsuarioTableView() {
                         color: 'text.secondary'
                       }}>
                         <Typography variant="h6" gutterBottom>
-                          {notFound ? 'No se encontraron resultados' : 'Sin registros'}
+                          No hay registros para mostrar
                         </Typography>
                         <Typography variant="body2">
-                          {canReset
-                            ? 'Intenta ajustar los filtros de búsqueda.'
-                            : 'No hay usuarios registrados en el sistema.'
-                          }
+                          Prueba ajustando los filtros o agrega nuevos registros.
                         </Typography>
                       </TableCell>
                     </TableRow>

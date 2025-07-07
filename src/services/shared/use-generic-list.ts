@@ -1,3 +1,5 @@
+// src/services/shared/use-generic-list.ts
+
 import useSWR from 'swr';
 import { useMemo } from 'react';
 import type { SWRConfiguration } from 'swr';

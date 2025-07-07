@@ -1,7 +1,9 @@
+// src/sections/seguridad/usuario/usuario-table-toolbar.tsx
+
 import type { SelectChangeEvent } from '@mui/material/Select';
 import type { UseSetStateReturn } from 'minimal-shared/hooks';
 
-import { useCallback } from 'react';
+import { useState, useCallback } from 'react';
 import { usePopover } from 'minimal-shared/hooks';
 
 import Box from '@mui/material/Box';
@@ -33,26 +35,36 @@ type Props = {
 
 export function UsuarioTableToolbar({ filters, options, onResetPage }: Props) {
   const menuActions = usePopover();
-
   const { state: currentFilters, setState: updateFilters } = filters;
 
-  const handleFilterName = useCallback(
+  const [localName, setLocalName] = useState(currentFilters.name);
+  const [localRole, setLocalRole] = useState(currentFilters.role);
+
+  const handleChangeName = useCallback(
     (event: React.ChangeEvent<HTMLInputElement>) => {
-      onResetPage();
-      updateFilters({ name: event.target.value });
+      setLocalName(event.target.value);
     },
-    [onResetPage, updateFilters]
+    []
   );
 
-  const handleFilterRole = useCallback(
+  const handleChangeRole = useCallback(
     (event: SelectChangeEvent<string[]>) => {
       const newValue =
-        typeof event.target.value === 'string' ? event.target.value.split(',') : event.target.value;
-      onResetPage();
-      updateFilters({ role: newValue });
+        typeof event.target.value === 'string'
+          ? event.target.value.split(',')
+          : event.target.value;
+      setLocalRole(newValue);
     },
-    [onResetPage, updateFilters]
+    []
   );
+
+  const handleApplyFilters = useCallback(() => {
+    updateFilters({
+      name: localName,
+      role: localRole,
+    });
+    onResetPage();
+  }, [localName, localRole, updateFilters, onResetPage]);
 
   const renderMenuActions = () => (
     <CustomPopover
@@ -66,12 +78,10 @@ export function UsuarioTableToolbar({ filters, options, onResetPage }: Props) {
           <Iconify icon="solar:printer-minimalistic-bold" />
           Imprimir
         </MenuItem>
-
         <MenuItem onClick={() => menuActions.onClose()}>
           <Iconify icon="solar:import-bold" />
           Importar
         </MenuItem>
-
         <MenuItem onClick={() => menuActions.onClose()}>
           <Iconify icon="solar:export-bold" />
           Exportar
@@ -97,9 +107,9 @@ export function UsuarioTableToolbar({ filters, options, onResetPage }: Props) {
           <Select
             multiple
             label="Tipo de Usuario"
-            value={currentFilters.role}
-            onChange={handleFilterRole}
-            renderValue={(selected) => selected.map((value) => value).join(', ')}
+            value={localRole}
+            onChange={handleChangeRole}
+            renderValue={(selected) => selected.join(', ')}
             inputProps={{ id: 'filter-role-select' }}
             MenuProps={{ PaperProps: { sx: { maxHeight: 240 } } }}
           >
@@ -108,7 +118,7 @@ export function UsuarioTableToolbar({ filters, options, onResetPage }: Props) {
                 <Checkbox
                   disableRipple
                   size="small"
-                  checked={currentFilters.role.includes(option.label)}
+                  checked={localRole.includes(option.label)}
                   slotProps={{ input: { id: `${option.label}-checkbox` } }}
                 />
                 {option.label}
@@ -129,8 +139,8 @@ export function UsuarioTableToolbar({ filters, options, onResetPage }: Props) {
         >
           <TextField
             fullWidth
-            value={currentFilters.name}
-            onChange={handleFilterName}
+            value={localName}
+            onChange={handleChangeName}
             placeholder="Buscar..."
             slotProps={{
               input: {
@@ -142,6 +152,7 @@ export function UsuarioTableToolbar({ filters, options, onResetPage }: Props) {
               },
             }}
           />
+
           <Box
             sx={{
               gap: 1,
@@ -151,15 +162,26 @@ export function UsuarioTableToolbar({ filters, options, onResetPage }: Props) {
               flexShrink: 0,
             }}
           >
+
             <Button
               component={RouterLink}
               href={paths.seguridad.user.new}
-              variant="contained"
+              variant="outlined"
               startIcon={<Iconify icon="mingcute:add-line" />}
               sx={{ px: 2.5, py: 1 }}
             >
               Agregar
             </Button>
+
+            <Button
+              variant="contained"
+              startIcon={<Iconify icon="solar:restart-bold" />}
+              onClick={handleApplyFilters}
+              sx={{ px: 2.5, py: 1 }}
+            >
+              Actualizar
+            </Button>
+
             <IconButton onClick={menuActions.onOpen}>
               <Iconify icon="eva:more-vertical-fill" />
             </IconButton>
