@@ -20,13 +20,14 @@ export const fetcher = async <T = unknown>(
     }
 };
 
-async function postFetcher([url, params]: [string, any]) {
+// Fetcher para POST (listas con filtros)
+export async function postFetcher([url, params]: [string, any]) {
     const { data } = await axiosInstance.post(url, params);
     return data;
 }
 
-// Fetcher GET con axiosInstance
-async function getFetcher([url, params]: [string, any]) {
+// Fetcher para GET (detalle de usuario)
+export async function getFetcher([url, params]: [string, any]) {
     const { data } = await axiosInstance.get(url, { params });
     return data;
 }
