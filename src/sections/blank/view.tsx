@@ -24,7 +24,7 @@ export function BlankView({ title = 'Blank', description, sx }: Props) {
         (theme) => ({
           mt: 5,
           width: 1,
-          height: 320,
+          height: { xs: 'calc(100vh - 64px)', md: 'calc(100vh - 80px)' }, // ← 64px móvil, 80px desktop
           borderRadius: 2,
           border: `dashed 1px ${theme.vars.palette.divider}`,
           bgcolor: varAlpha(theme.vars.palette.grey['500Channel'], 0.04),

@@ -204,7 +204,10 @@ export function DashboardLayout({
 
   const renderFooter = () => null;
 
-  const renderMain = () => <MainSection {...slotProps?.main}>{children}</MainSection>;
+  const renderMain = () => <MainSection
+    {...slotProps?.main}>
+    {children}
+  </MainSection>;
 
   return (
     <LayoutSection

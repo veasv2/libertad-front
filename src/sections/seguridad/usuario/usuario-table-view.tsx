@@ -11,109 +11,107 @@ import Tab from '@mui/material/Tab';
 import Tabs from '@mui/material/Tabs';
 import Card from '@mui/material/Card';
 import Table from '@mui/material/Table';
-import Button from '@mui/material/Button';
-import Tooltip from '@mui/material/Tooltip';
 import TableBody from '@mui/material/TableBody';
-import IconButton from '@mui/material/IconButton';
-
-import type { PaletteColorKey } from 'src/theme/core';
-import type { TableHeadCellProps } from 'src/components/table';
-import type { IUserItem, IUserTableFilters } from 'src/types/user';
-
-import { paths } from 'src/routes/paths';
-import { RouterLink } from 'src/routes/components';
-
-import { DashboardContent } from 'src/layouts/dashboard';
-
-import { Usuario } from 'src/models/seguridad/usuario';
-import { ESTADO_USUARIO_OPTIONS, TIPO_USUARIO_OPTIONS } from 'src/types/enums/usuario-enum';
-
-// Importar el servicio
-import { useUsuariosList } from 'src/services/seguridad/usuario/usuario-service';
 
 import { Label } from 'src/components/label';
 import { toast } from 'src/components/snackbar';
-import { Iconify } from 'src/components/iconify';
 import { Scrollbar } from 'src/components/scrollbar';
-import { ConfirmDialog } from 'src/components/custom-dialog';
+
+import { paths } from 'src/routes/paths';
+import { DashboardContent } from 'src/layouts/dashboard';
+
+import { ESTADO_USUARIO_OPTIONS, TIPO_USUARIO_OPTIONS } from 'src/types/enums/usuario-enum';
+
+import { useUsuariosList } from 'src/services/seguridad/usuario/usuario-service';
+import type { UsuarioListaParams } from 'src/services/seguridad/usuario/types';
+import type { SortConfig } from 'src/types/filters';
+import type { IUserTableFilters } from 'src/types/user';
+import type { TableHeadCellProps } from 'src/components/table';
+
 import {
   useTable,
-  emptyRows,
-  rowInPage,
   TableNoData,
-  getComparator,
-  TableEmptyRows,
   TableHeadCustom,
-  TableSelectedAction,
-  TablePaginationCustom,
 } from 'src/components/table';
 
 import { UsuarioTableRow } from './usuario-table-row';
 import { UsuarioTableToolbar } from './usuario-table-toolbar';
 
+import Switch from '@mui/material/Switch';
+import FormControlLabel from '@mui/material/FormControlLabel';
+import TablePagination from '@mui/material/TablePagination';
+import type { TablePaginationProps } from '@mui/material/TablePagination';
+import type { Theme, SxProps } from '@mui/material/styles';
+
 const ESTADO_USUARIO = [
-  { value: 'all', label: 'Todos', color: 'default' as PaletteColorKey },
+  { value: 'all', label: 'Todos', color: 'default' },
   ...ESTADO_USUARIO_OPTIONS
 ];
 
 const TABLE_HEAD: TableHeadCellProps[] = [
-  { id: 'dni_email', label: 'Usuario' },
-  { id: 'nombre_apellidos', label: 'Nombres', width: 150 },
-  { id: 'telefono', label: 'Teléfono', width: 100 },
-  { id: 'tipo', label: 'Tipo', width: 100 },
-  { id: 'estado', label: 'Estado', width: 100 },
-  { id: 'ultimo_acceso', label: 'Conexión', width: 120 },
-  { id: '', label: '', width: 64 }  // Para acciones
+  { id: 'email', label: 'Usuario', sort: true },
+  { id: 'nombres', label: 'Nombres', width: { xs: 120, sm: 150, md: 180 }, sort: true },
+  { id: 'telefono', label: 'Teléfono', width: { xs: 90, sm: 100, md: 120 }, hide: { xs: true, sm: false } },
+  { id: 'tipo', label: 'Tipo', width: { xs: 80, sm: 100, md: 120 }, sort: true },
+  { id: 'estado', label: 'Estado', width: { xs: 80, sm: 100, md: 120 }, sort: true },
+  { id: 'ultimo_acceso', label: 'Conexión', width: { xs: 100, sm: 120, md: 140 }, sort: true, hide: { xs: true, md: false } },
+  { id: '', label: '', width: 64 }
 ];
 
 export function UsuarioTableView() {
   const table = useTable();
   const confirmDialog = useBoolean();
 
-  // Estado para los filtros
-  const filters = useSetState<IUserTableFilters>({ name: '', role: [], status: 'all' });
+  const filters = useSetState<IUserTableFilters>({
+    name: '',
+    role: [],
+    status: 'all'
+  });
   const { state: currentFilters, setState: updateFilters } = filters;
 
-  // Construir los parámetros para el servicio basado en los filtros
-  const serviceParams = useMemo(() => {
+  const [sortConfig, setSortConfig] = useState<SortConfig>([
+    { column: 'nombres', direction: 'asc' }
+  ]);
+
+  const [dense, setDense] = useState(false);
+
+  const serviceParams = useMemo((): UsuarioListaParams => {
     const where: any = {};
-
-    // Filtro por nombre
     if (currentFilters.name) {
-      where.nombres = { contains: currentFilters.name };
+      where.OR = [
+        { nombres: { contains: currentFilters.name, mode: 'insensitive' } },
+        { apellido_paterno: { contains: currentFilters.name, mode: 'insensitive' } },
+        { email: { contains: currentFilters.name, mode: 'insensitive' } },
+        { dni: { contains: currentFilters.name, mode: 'insensitive' } }
+      ];
     }
-
-    // Filtro por estado
     if (currentFilters.status !== 'all') {
       where.estado = { equals: currentFilters.status };
     }
-
-    // Filtro por roles/tipos
     if (currentFilters.role.length > 0) {
       where.tipo = { in: currentFilters.role };
     }
 
     return {
-      where,
+      where: Object.keys(where).length > 0 ? where : undefined,
       pagination: {
-        page: table.page + 1, // El servicio espera página base 1
+        page: table.page + 1,
         pageSize: table.rowsPerPage,
       },
+      sort: sortConfig
     };
-  }, [currentFilters, table.page, table.rowsPerPage]);
+  }, [currentFilters, table.page, table.rowsPerPage, sortConfig]);
 
-  // Usar el servicio para obtener datos
-  const { data: usuarios, total, isLoading, error } = useUsuariosList(serviceParams);
+  const {
+    data: usuarios,
+    total,
+    isLoading,
+    error
+  } = useUsuariosList(serviceParams);
 
-  // Manejar estados de carga y error
   if (error) {
     toast.error('Error al cargar usuarios');
   }
-
-  const canReset =
-    !!currentFilters.name || currentFilters.role.length > 0 || currentFilters.status !== 'all';
-
-  const notFound = (!usuarios.length && canReset) || !usuarios.length;
 
   const handleFilterStatus = useCallback(
     (event: React.SyntheticEvent, newValue: string) => {
@@ -123,110 +121,125 @@ export function UsuarioTableView() {
     [updateFilters, table]
   );
 
-  // Contar usuarios por estado para los tabs
-  const getUsuarioCountByStatus = useCallback((status: string) => {
-    if (status === 'all') return total;
+  const handleSort = useCallback(
+    (columnId: string) => {
+      const fieldMapping: Record<string, string> = {
+        'email': 'email',
+        'nombres': 'nombres',
+        'tipo': 'tipo',
+        'estado': 'estado',
+        'ultimo_acceso': 'ultimo_acceso'
+      };
 
-    // Para obtener el conteo exacto, podrías hacer una consulta adicional
-    // o mantener un estado local con todos los usuarios
-    return 0; // Placeholder - implementar según necesidades
-  }, [total]);
+      const fieldName = fieldMapping[columnId];
+      if (!fieldName) return;
+
+      setSortConfig(prevSort => {
+        const existingSort = prevSort.find(s => s.column === fieldName);
+        if (existingSort) {
+          return prevSort.map(s =>
+            s.column === fieldName
+              ? { ...s, direction: s.direction === 'asc' ? 'desc' : 'asc' }
+              : s
+          );
+        } else {
+          return [{ column: fieldName, direction: 'asc' }];
+        }
+      });
+
+      table.onResetPage();
+    },
+    [table]
+  );
+
+  const notFound = (!usuarios.length && (!!currentFilters.name || currentFilters.role.length > 0 || currentFilters.status !== 'all')) || (!usuarios.length && !isLoading);
 
   return (
-    <>
-      <DashboardContent>
-        <Box sx={{ mb: { xs: 1, md: 2 } }}>
-          <Typography variant="h5">Lista de Usuarios</Typography>
+    <DashboardContent sx={{ display: 'flex', flexDirection: 'column', height: { xs: 'calc(100vh - 64px)', md: 'calc(100vh - 80px)' } }}>
+      <Box sx={{ mb: { xs: 1, md: 2 } }}>
+        <Typography variant="h5">Lista de Usuarios</Typography>
+      </Box>
+
+      <Card sx={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
+        <Tabs value={currentFilters.status} onChange={handleFilterStatus}>
+          {ESTADO_USUARIO.map((tab) => (
+            <Tab
+              key={tab.value}
+              value={tab.value}
+              label={tab.label}
+              icon={
+                <Label variant={tab.value === currentFilters.status ? 'filled' : 'soft'} color={tab.color}>
+                  {tab.value === 'all' ? total : 0}
+                </Label>
+              }
+              iconPosition="end"
+            />
+          ))}
+        </Tabs>
+
+        <UsuarioTableToolbar
+          filters={filters}
+          onResetPage={table.onResetPage}
+          options={{ tipoUsuario: TIPO_USUARIO_OPTIONS }}
+        />
+
+        <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minHeight: 0 }}>
+          <Scrollbar sx={{ flex: 1 }}>
+            <Table size={dense ? 'small' : 'medium'}>
+              <TableHeadCustom
+                order={sortConfig[0]?.direction === 'desc' ? 'desc' : 'asc'}
+                orderBy={sortConfig[0]?.column || ''}
+                headCells={TABLE_HEAD}
+                rowCount={total}
+                numSelected={table.selected.length}
+                onSort={(id) => handleSort(id)}
+              />
+              <TableBody>
+                {isLoading
+                  ? Array.from({ length: 5 }).map((_, index) => (
+                    <tr key={index}><td colSpan={TABLE_HEAD.length}><Box sx={{ p: 2, textAlign: 'center' }}>Cargando...</Box></td></tr>
+                  ))
+                  : usuarios.map((row) => (
+                    <UsuarioTableRow
+                      key={row.uuid}
+                      row={row}
+                      selected={table.selected.includes(row.uuid)}
+                      onSelectRow={() => table.onSelectRow(row.uuid)}
+                      editHref={paths.seguridad.user.edit(row.uuid)}
+                    />
+                  ))}
+                <TableNoData notFound={notFound} />
+              </TableBody>
+            </Table>
+          </Scrollbar>
         </Box>
 
-        <Card>
-          <Tabs
-            value={currentFilters.status}
-            onChange={handleFilterStatus}
-            sx={[
-              (theme) => ({
-                px: { md: 2.5 },
-                boxShadow: `inset 0 -2px 0 0 ${varAlpha(theme.vars.palette.grey['500Channel'], 0.08)}`,
-              }),
-            ]}
-          >
-            {ESTADO_USUARIO.map((tab) => (
-              <Tab
-                key={tab.value}
-                iconPosition="end"
-                value={tab.value}
-                label={tab.label}
-                icon={
-                  <Label
-                    variant={tab.value === currentFilters.status ? 'filled' : 'soft'}
-                    color={tab.color}
-                  >
-                    {getUsuarioCountByStatus(tab.value)}
-                  </Label>
-                }
-              />
-            ))}
-          </Tabs>
-
-          <UsuarioTableToolbar
-            filters={filters}
-            onResetPage={table.onResetPage}
-            options={{ tipoUsuario: TIPO_USUARIO_OPTIONS }}
-          />
-
+        <Box sx={{ flexShrink: 0, borderTop: 1, borderColor: 'divider' }}>
           <Box sx={{ position: 'relative' }}>
-            <Scrollbar>
-              <Table size={table.dense ? 'small' : 'medium'} sx={{ minWidth: 960 }}>
-                <TableHeadCustom
-                  order={table.order}
-                  orderBy={table.orderBy}
-                  headCells={TABLE_HEAD}
-                  rowCount={total}
-                  numSelected={table.selected.length}
-                  onSort={table.onSort}
+            <TablePagination
+              component="div"
+              count={total}
+              page={table.page}
+              rowsPerPage={table.rowsPerPage}
+              onPageChange={table.onChangePage}
+              onRowsPerPageChange={table.onChangeRowsPerPage}
+              rowsPerPageOptions={[5, 10, 25]}
+              sx={{ borderTopColor: 'transparent' }}
+            />
+            <FormControlLabel
+              label="Dense"
+              control={
+                <Switch
+                  checked={dense}
+                  onChange={(e) => setDense(e.target.checked)}
+                  slotProps={{ input: { id: 'dense-switch' } }}
                 />
-
-                <TableBody>
-                  {isLoading ? (
-                    // Mostrar skeleton o loader mientras carga
-                    Array.from({ length: table.rowsPerPage }).map((_, index) => (
-                      <tr key={index}>
-                        <td colSpan={TABLE_HEAD.length}>
-                          <Box sx={{ p: 2, textAlign: 'center' }}>
-                            Cargando...
-                          </Box>
-                        </td>
-                      </tr>
-                    ))
-                  ) : (
-                    usuarios.map((row) => (
-                      <UsuarioTableRow
-                        key={row.uuid}
-                        row={row}
-                        selected={table.selected.includes(row.uuid)}
-                        onSelectRow={() => table.onSelectRow(row.uuid)}
-                        editHref={paths.seguridad.user.edit(row.uuid)}
-                      />
-                    ))
-                  )}
-
-                  <TableNoData notFound={notFound && !isLoading} />
-                </TableBody>
-              </Table>
-            </Scrollbar>
+              }
+              sx={{ pl: 2, py: 1.5, top: 0, position: { sm: 'absolute' } }}
+            />
           </Box>
-
-          <TablePaginationCustom
-            page={table.page}
-            dense={table.dense}
-            count={total}
-            rowsPerPage={table.rowsPerPage}
-            onPageChange={table.onChangePage}
-            onChangeDense={table.onChangeDense}
-            onRowsPerPageChange={table.onChangeRowsPerPage}
-          />
-        </Card>
-      </DashboardContent>
-    </>
+        </Box>
+      </Card>
+    </DashboardContent>
   );
 }

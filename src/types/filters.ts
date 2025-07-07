@@ -1,8 +1,5 @@
 // src/types/filters.ts
 
-/**
- * Filtros para campos de texto/string
- */
 export interface StringFilter {
     equals?: string;
     contains?: string;
@@ -11,9 +8,6 @@ export interface StringFilter {
     in?: string[];
 }
 
-/**
- * Filtros para campos numéricos
- */
 export interface NumberFilter {
     equals?: number;
     gt?: number;        // greater than
@@ -23,9 +17,6 @@ export interface NumberFilter {
     in?: number[];
 }
 
-/**
- * Filtros para campos de fecha
- */
 export interface DateFilter {
     equals?: Date | string;
     gt?: Date | string;
@@ -35,33 +26,31 @@ export interface DateFilter {
     in?: (Date | string)[];
 }
 
-/**
- * Filtros para campos enum/selección
- */
 export interface EnumFilter<T = string> {
     equals?: T;
     in?: T[];
 }
 
-/**
- * Filtros para campos booleanos
- */
 export interface BooleanFilter {
     equals?: boolean;
 }
 
-// ----------------------------------------------------------------------
-// Configuración de paginación
-// ----------------------------------------------------------------------
-
-export interface PaginationConfig {
-    page: number;          // página actual (1-indexed)
-    pageSize: number;      // registros por página
+export interface SortColumn {
+    column: string;
+    direction: 'asc' | 'desc';
 }
 
-// ----------------------------------------------------------------------
-// Resultado paginado genérico
-// ----------------------------------------------------------------------
+export type SortConfig = SortColumn[];
+
+
+// ================================================================
+// RESULTADO PAGINADO
+// ================================================================
+
+export interface PaginationConfig {
+    page: number;
+    pageSize: number;
+}
 
 export interface PaginatedResult<T> {
     data: T[];              // datos de la página actual
@@ -74,11 +63,8 @@ export interface PaginatedResult<T> {
     currentPage: number;    // página actual
 }
 
-// ----------------------------------------------------------------------
-// Base para parámetros de consulta
-// ----------------------------------------------------------------------
-
 export interface BaseListParams<W = any> {
     where?: W;
     pagination?: PaginationConfig;
+    sort?: SortConfig;      // ← NUEVO: Ordenamiento
 }
