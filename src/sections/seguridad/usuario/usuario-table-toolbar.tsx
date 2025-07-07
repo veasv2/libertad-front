@@ -3,7 +3,7 @@
 import type { SelectChangeEvent } from '@mui/material/Select';
 import type { UseSetStateReturn } from 'minimal-shared/hooks';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { usePopover } from 'minimal-shared/hooks';
 
 import Box from '@mui/material/Box';
@@ -18,7 +18,8 @@ import FormControl from '@mui/material/FormControl';
 import Button from '@mui/material/Button';
 import InputAdornment from '@mui/material/InputAdornment';
 
-import type { IUserTableFilters } from 'src/types/user';
+import type { UsuarioWhere } from 'src/services/seguridad/usuario/usuario-types';
+import type { TipoUsuarioValue } from 'src/types/enums/usuario-enum';
 import { Iconify } from 'src/components/iconify';
 import { CustomPopover } from 'src/components/custom-popover';
 import { RouterLink } from 'src/routes/components';
@@ -29,42 +30,76 @@ import { TIPO_USUARIO_OPTIONS } from 'src/types/enums/usuario-enum';
 
 type Props = {
   onResetPage: () => void;
-  filters: UseSetStateReturn<IUserTableFilters>;
-  options: {};
+  filters: UseSetStateReturn<UsuarioWhere>;
+  options?: {};
 };
 
-export function UsuarioTableToolbar({ filters, options, onResetPage }: Props) {
+export function UsuarioTableToolbar({ filters, onResetPage }: Props) {
   const menuActions = usePopover();
   const { state: currentFilters, setState: updateFilters } = filters;
 
-  const [localName, setLocalName] = useState(currentFilters.name);
-  const [localRole, setLocalRole] = useState(currentFilters.role);
+  // Estados locales para manejar inputs antes de aplicar
+  const [localSearch, setLocalSearch] = useState('');
+  const [localTipo, setLocalTipo] = useState<TipoUsuarioValue[]>([]);
 
-  const handleChangeName = useCallback(
+  // ✅ CORREGIDO: Solo inicializar una vez, sin sincronización
+  useEffect(() => {
+    // Solo se ejecuta al montar el componente
+    console.log('Toolbar mounted, initializing filters...');
+  }, []);
+
+  const handleChangeSearch = useCallback(
     (event: React.ChangeEvent<HTMLInputElement>) => {
-      setLocalName(event.target.value);
+      setLocalSearch(event.target.value);
     },
     []
   );
 
-  const handleChangeRole = useCallback(
-    (event: SelectChangeEvent<string[]>) => {
-      const newValue =
-        typeof event.target.value === 'string'
-          ? event.target.value.split(',')
-          : event.target.value;
-      setLocalRole(newValue);
+  const handleChangeTipo = useCallback(
+    (event: SelectChangeEvent<TipoUsuarioValue[]>) => {
+      const newValue = typeof event.target.value === 'string'
+        ? []
+        : event.target.value;
+      setLocalTipo(newValue);
     },
     []
   );
 
+  // ✅ DEFINIR PRIMERO: handleApplyFilters
   const handleApplyFilters = useCallback(() => {
-    updateFilters({
-      name: localName,
-      role: localRole,
-    });
+    const newWhere: UsuarioWhere = {};
+
+    // Construir filtro de búsqueda de texto (solo si hay contenido)
+    if (localSearch && localSearch.trim()) {
+      const searchTerm = localSearch.trim();
+      newWhere.OR = [
+        { nombres: { contains: searchTerm } },
+        { apellido_paterno: { contains: searchTerm } },
+        { apellido_materno: { contains: searchTerm } },
+        { email: { contains: searchTerm } },
+        { dni: { contains: searchTerm } }
+      ];
+    }
+
+    // Construir filtro de tipo (solo si hay selecciones)
+    if (localTipo && localTipo.length > 0) {
+      newWhere.tipo = { in: localTipo };
+    }
+
+    // Actualizar los filtros directamente
+    updateFilters(newWhere);
     onResetPage();
-  }, [localName, localRole, updateFilters, onResetPage]);
+  }, [localSearch, localTipo, updateFilters, onResetPage]);
+
+  // ✅ DEFINIR DESPUÉS: handleKeyDown (que usa handleApplyFilters)
+  const handleKeyDown = useCallback(
+    (event: React.KeyboardEvent<HTMLInputElement>) => {
+      if (event.key === 'Enter') {
+        handleApplyFilters();
+      }
+    },
+    [handleApplyFilters]
+  );
 
   const renderMenuActions = () => (
     <CustomPopover
@@ -103,23 +138,27 @@ export function UsuarioTableToolbar({ filters, options, onResetPage }: Props) {
         }}
       >
         <FormControl sx={{ flexShrink: 0, width: { xs: 1, md: 250 } }}>
-          <InputLabel htmlFor="filter-role-select">Tipo de Usuario</InputLabel>
+          <InputLabel htmlFor="filter-tipo-select">Tipo de Usuario</InputLabel>
           <Select
             multiple
             label="Tipo de Usuario"
-            value={localRole}
-            onChange={handleChangeRole}
-            renderValue={(selected) => selected.join(', ')}
-            inputProps={{ id: 'filter-role-select' }}
+            value={localTipo}
+            onChange={handleChangeTipo}
+            renderValue={(selected) =>
+              selected.map(value =>
+                TIPO_USUARIO_OPTIONS.find(option => option.value === value)?.label
+              ).join(', ')
+            }
+            inputProps={{ id: 'filter-tipo-select' }}
             MenuProps={{ PaperProps: { sx: { maxHeight: 240 } } }}
           >
             {TIPO_USUARIO_OPTIONS.map((option) => (
-              <MenuItem key={option.value} value={option.label}>
+              <MenuItem key={option.value} value={option.value}>
                 <Checkbox
                   disableRipple
                   size="small"
-                  checked={localRole.includes(option.label)}
-                  slotProps={{ input: { id: `${option.label}-checkbox` } }}
+                  checked={localTipo.includes(option.value)}
+                  slotProps={{ input: { id: `${option.value}-checkbox` } }}
                 />
                 {option.label}
               </MenuItem>
@@ -139,9 +178,10 @@ export function UsuarioTableToolbar({ filters, options, onResetPage }: Props) {
         >
           <TextField
             fullWidth
-            value={localName}
-            onChange={handleChangeName}
-            placeholder="Buscar..."
+            value={localSearch}
+            onChange={handleChangeSearch}
+            onKeyDown={handleKeyDown}
+            placeholder="Buscar por nombre, apellidos, email o DNI..."
             slotProps={{
               input: {
                 startAdornment: (
@@ -162,7 +202,6 @@ export function UsuarioTableToolbar({ filters, options, onResetPage }: Props) {
               flexShrink: 0,
             }}
           >
-
             <Button
               component={RouterLink}
               href={paths.seguridad.user.new}

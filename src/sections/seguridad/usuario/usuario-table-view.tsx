@@ -22,7 +22,6 @@ import TableCell from '@mui/material/TableCell';
 import TableSortLabel from '@mui/material/TableSortLabel';
 
 import type { PaletteColorKey } from 'src/theme/core';
-import type { IUserTableFilters } from 'src/types/user';
 
 import { paths } from 'src/routes/paths';
 import { RouterLink } from 'src/routes/components';
@@ -34,7 +33,7 @@ import { ESTADO_USUARIO_OPTIONS, TIPO_USUARIO_OPTIONS } from 'src/types/enums/us
 
 // ← IMPORTACIONES ACTUALIZADAS
 import { useUsuarioList } from 'src/services/seguridad/usuario/usuario-service';
-import type { UsuarioListParams } from 'src/services/seguridad/usuario/usuario-types';
+import type { UsuarioListParams, UsuarioWhere } from 'src/services/seguridad/usuario/usuario-types';
 import type { SortConfig } from 'src/types/filters';
 
 import { Label } from 'src/components/label';
@@ -61,7 +60,6 @@ type TableHeaderCell = {
   hide?: any;
   align?: 'left' | 'center' | 'right';
 };
-
 
 // ← TABLA HEADERS RESPONSIVA
 const TABLE_HEAD: TableHeaderCell[] = [
@@ -90,52 +88,65 @@ const visuallyHidden = {
 export function UsuarioTableView() {
   const table = useTable();
 
-  // ← ESTADO ACTUALIZADO PARA FILTROS Y ORDENAMIENTO
-  const filters = useSetState<IUserTableFilters>({
-    name: '',
-    role: [],
-    status: 'all'
-  });
-  const { state: currentFilters, setState: updateFilters } = filters;
+  // ← ESTADO SIMPLIFICADO: Solo manejar filtros del toolbar
+  const filters = useSetState<UsuarioWhere>({});
+  const { state: toolbarFilters, setState: updateToolbarFilters } = filters;
+
+  // Estado para el tab de estado (separado del filtro principal)
+  const [selectedTab, setSelectedTab] = useState('all');
 
   // ← NUEVO: Estado para ordenamiento
   const [sortConfig, setSortConfig] = useState<SortConfig>([
     { column: 'nombres', direction: 'asc' }
   ]);
 
-  // ← PARÁMETROS ACTUALIZADOS PARA EL SERVICIO
+  // ← PARÁMETROS CORREGIDOS CON DEBUG
   const serviceParams = useMemo((): UsuarioListParams => {
-    const where: any = {};
+    const conditions: UsuarioWhere[] = [];
 
-    // Búsqueda por nombre (si existe)
-    if (currentFilters.name) {
-      where.OR = [
-        { nombres: { contains: currentFilters.name, mode: 'insensitive' } },
-        { apellido_paterno: { contains: currentFilters.name, mode: 'insensitive' } },
-        { email: { contains: currentFilters.name, mode: 'insensitive' } },
-        { dni: { contains: currentFilters.name, mode: 'insensitive' } }
-      ];
+    // 1. Filtro de búsqueda de texto (OR anidado)
+    if (toolbarFilters.OR && toolbarFilters.OR.length > 0) {
+      conditions.push({
+        OR: toolbarFilters.OR
+      });
     }
 
-    // Filtro por estado
-    if (currentFilters.status !== 'all') {
-      where.estado = { equals: currentFilters.status };
+    // 2. Filtro de tipo (AND)
+    if (toolbarFilters.tipo && toolbarFilters.tipo.in && toolbarFilters.tipo.in.length > 0) {
+      conditions.push({
+        tipo: toolbarFilters.tipo
+      });
     }
 
-    // Filtro por roles/tipos (múltiples)
-    if (currentFilters.role.length > 0) {
-      where.tipo = { in: currentFilters.role };
+    // 3. Filtro de estado del tab (AND)
+    if (selectedTab !== 'all') {
+      conditions.push({
+        estado: { equals: selectedTab }
+      });
     }
 
-    return {
-      where: Object.keys(where).length > 0 ? where : undefined,
+    // Construir el WHERE final
+    let finalWhere: UsuarioWhere | undefined;
+
+    if (conditions.length === 0) {
+      finalWhere = undefined;
+    } else if (conditions.length === 1) {
+      finalWhere = conditions[0];
+    } else {
+      finalWhere = { AND: conditions };
+    }
+
+    const params = {
+      where: finalWhere,
       pagination: {
         page: table.page + 1,
         pageSize: table.rowsPerPage,
       },
       sort: sortConfig
     };
-  }, [currentFilters, table.page, table.rowsPerPage, sortConfig]);
+
+    return params;
+  }, [toolbarFilters, table.page, table.rowsPerPage, selectedTab, sortConfig]);
 
   // ← USAR EL SERVICIO ACTUALIZADO
   const {
@@ -154,8 +165,12 @@ export function UsuarioTableView() {
     toast.error('Error al cargar usuarios');
   }
 
-  const canReset =
-    !!currentFilters.name || currentFilters.role.length > 0 || currentFilters.status !== 'all';
+  // ← ACTUALIZAR LÓGICA DE canReset
+  const canReset = !!(
+    toolbarFilters.OR || // Hay búsqueda de texto
+    toolbarFilters.tipo?.in?.length || // Hay filtro de tipo
+    selectedTab !== 'all' // Hay filtro de estado
+  );
 
   const notFound = (!usuarios.length && canReset) || (!usuarios.length && !isLoading);
 
@@ -164,9 +179,9 @@ export function UsuarioTableView() {
   const handleFilterStatus = useCallback(
     (event: React.SyntheticEvent, newValue: string) => {
       table.onResetPage();
-      updateFilters({ status: newValue });
+      setSelectedTab(newValue);
     },
-    [updateFilters, table]
+    [table]
   );
 
   // ← NUEVO: Handler para ordenamiento
@@ -234,7 +249,7 @@ export function UsuarioTableView() {
           }}
         >
           <Tabs
-            value={currentFilters.status}
+            value={selectedTab}
             onChange={handleFilterStatus}
             sx={[
               (theme) => ({
@@ -252,7 +267,7 @@ export function UsuarioTableView() {
                 label={tab.label}
                 icon={
                   <Label
-                    variant={tab.value === currentFilters.status ? 'filled' : 'soft'}
+                    variant={tab.value === selectedTab ? 'filled' : 'soft'}
                     color={tab.color}
                   >
                     {getUsuarioCountByStatus(tab.value)}
@@ -266,7 +281,6 @@ export function UsuarioTableView() {
             <UsuarioTableToolbar
               filters={filters}
               onResetPage={table.onResetPage}
-              options={{ tipoUsuario: TIPO_USUARIO_OPTIONS }}
             />
           </Box>
 
@@ -301,34 +315,42 @@ export function UsuarioTableView() {
                   }
                 }}
               >
-                <TableHead sx={{
-                  '& .MuiTableCell-root': {
-                    position: 'sticky',
-                    top: 0,
-                    backgroundColor: 'background.paper',
-                    zIndex: 1,
-                  }
-                }}>
+                <TableHead
+                  sx={{
+                    '& .MuiTableCell-root': {
+                      position: 'sticky',
+                      top: 0,
+                      zIndex: 1,
+                    }
+                  }}>
                   <TableRow>
                     {TABLE_HEAD.map((headCell) => (
                       <TableCell
                         key={headCell.id}
                         align={headCell.align || 'left'}
-                        sortDirection={sortConfig[0]?.column === headCell.id ? sortConfig[0]?.direction : false}
+                        sortDirection={
+                          sortConfig?.[0]?.column === headCell.id
+                            ? sortConfig[0].direction
+                            : false
+                        }
                         sx={{ width: headCell.width }}
                       >
                         {headCell.sort && headCell.id ? (
                           <TableSortLabel
                             hideSortIcon
-                            active={sortConfig[0]?.column === headCell.id}
-                            direction={sortConfig[0]?.column === headCell.id ? sortConfig[0]?.direction : 'asc'}
+                            active={sortConfig?.[0]?.column === headCell.id}
+                            direction={
+                              sortConfig?.[0]?.column === headCell.id
+                                ? sortConfig[0].direction
+                                : 'asc'
+                            }
                             onClick={() => handleSort(headCell.id)}
                           >
                             {headCell.label}
 
-                            {sortConfig[0]?.column === headCell.id ? (
+                            {sortConfig?.[0]?.column === headCell.id ? (
                               <Box component="span" sx={visuallyHidden}>
-                                {sortConfig[0]?.direction === 'desc' ? 'sorted descending' : 'sorted ascending'}
+                                {sortConfig[0].direction === 'desc' ? 'sorted descending' : 'sorted ascending'}
                               </Box>
                             ) : null}
                           </TableSortLabel>
