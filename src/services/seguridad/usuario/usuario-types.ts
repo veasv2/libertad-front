@@ -2,6 +2,7 @@
 
 import type { StringFilter, EnumFilter } from 'src/types/filters';
 import type { ListParams, ApiResponse, ListResult, FilterPreset, Presets } from 'src/types/query';
+import type { SummaryResult } from 'src/types/summary';
 
 import type { Usuario } from 'src/models/seguridad/usuario';
 import type { TipoUsuarioValue, EstadoUsuarioValue } from 'src/types/enums/usuario-enum';
@@ -28,3 +29,6 @@ export type UsuarioApiResponse = ApiResponse<Usuario>;
 export type UsuarioListResult = ListResult<Usuario>;
 export type UsuarioFilterPreset = FilterPreset<UsuarioWhere>;
 export type UsuarioPresets = Presets<UsuarioWhere>;
+
+// Tipo específico para resúmenes de usuarios
+export type UsuarioSummaryResult = SummaryResult;

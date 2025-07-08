@@ -42,11 +42,37 @@ export function UsuarioTableToolbar({ filters, onResetPage }: Props) {
   const [localSearch, setLocalSearch] = useState('');
   const [localTipo, setLocalTipo] = useState<TipoUsuarioValue[]>([]);
 
-  // ✅ CORREGIDO: Solo inicializar una vez, sin sincronización
+  // ✅ SINCRONIZACIÓN INICIAL: Extraer valores de los filtros actuales al cargar
   useEffect(() => {
-    // Solo se ejecuta al montar el componente
-    console.log('Toolbar mounted, initializing filters...');
-  }, []);
+    // Extraer término de búsqueda del filtro OR
+    if (currentFilters.OR && Array.isArray(currentFilters.OR) && currentFilters.OR.length > 0) {
+      const searchFilter = currentFilters.OR.find(filter =>
+        filter.nombres?.contains ||
+        filter.apellido_paterno?.contains ||
+        filter.apellido_materno?.contains ||
+        filter.email?.contains ||
+        filter.dni?.contains
+      );
+
+      if (searchFilter) {
+        const searchTerm = searchFilter.nombres?.contains ||
+          searchFilter.apellido_paterno?.contains ||
+          searchFilter.apellido_materno?.contains ||
+          searchFilter.email?.contains ||
+          searchFilter.dni?.contains;
+        setLocalSearch(searchTerm || '');
+      }
+    } else {
+      setLocalSearch('');
+    }
+
+    // Extraer tipos seleccionados
+    if (currentFilters.tipo?.in && Array.isArray(currentFilters.tipo.in)) {
+      setLocalTipo(currentFilters.tipo.in);
+    } else {
+      setLocalTipo([]);
+    }
+  }, [currentFilters]);
 
   const handleChangeSearch = useCallback(
     (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -65,7 +91,7 @@ export function UsuarioTableToolbar({ filters, onResetPage }: Props) {
     []
   );
 
-  // ✅ DEFINIR PRIMERO: handleApplyFilters
+  // ✅ CORREGIDO: Lógica de aplicación que REEMPLAZA completamente los filtros
   const handleApplyFilters = useCallback(() => {
     const newWhere: UsuarioWhere = {};
 
@@ -86,12 +112,11 @@ export function UsuarioTableToolbar({ filters, onResetPage }: Props) {
       newWhere.tipo = { in: localTipo };
     }
 
-    // Actualizar los filtros directamente
+    // ✅ CLAVE: REEMPLAZAR completamente los filtros (no hacer merge)
     updateFilters(newWhere);
     onResetPage();
   }, [localSearch, localTipo, updateFilters, onResetPage]);
 
-  // ✅ DEFINIR DESPUÉS: handleKeyDown (que usa handleApplyFilters)
   const handleKeyDown = useCallback(
     (event: React.KeyboardEvent<HTMLInputElement>) => {
       if (event.key === 'Enter') {

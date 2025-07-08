@@ -28,8 +28,8 @@ export const endpoints = {
     seguridad: {
         usuario: {
             lista: '/api/v1/seguridad/usuario/lista',
-            detalle: '/api/v1/seguridad/usuario/detalle'
+            detalle: '/api/v1/seguridad/usuario/detalle',
+            resumen: '/api/v1/seguridad/usuario/resumen'
         }
-
     },
 } as const;

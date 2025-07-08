@@ -14,7 +14,6 @@ import Tabs from '@mui/material/Tabs';
 import Card from '@mui/material/Card';
 import Table from '@mui/material/Table';
 import TableBody from '@mui/material/TableBody';
-import TablePagination from '@mui/material/TablePagination';
 import TableRow from '@mui/material/TableRow';
 import Skeleton from '@mui/material/Skeleton';
 import TableHead from '@mui/material/TableHead';
@@ -31,7 +30,6 @@ import { DashboardContent } from 'src/layouts/dashboard';
 import { Usuario } from 'src/models/seguridad/usuario';
 import { ESTADO_USUARIO_OPTIONS, TIPO_USUARIO_OPTIONS } from 'src/types/enums/usuario-enum';
 
-// ← IMPORTACIONES ACTUALIZADAS
 import { useUsuarioList } from 'src/services/seguridad/usuario/usuario-service';
 import type { UsuarioListParams, UsuarioWhere } from 'src/services/seguridad/usuario/usuario-types';
 import type { SortConfig } from 'src/types/filters';
@@ -40,12 +38,11 @@ import { Label } from 'src/components/label';
 import { toast } from 'src/components/snackbar';
 import { Scrollbar } from 'src/components/scrollbar';
 import { ConfirmDialog } from 'src/components/custom-dialog';
-import {
-  useTable,
-} from 'src/components/table';
+import { useTable } from 'src/components/table';
 
 import { UsuarioTableRow } from './usuario-table-row';
 import { UsuarioTableToolbar } from './usuario-table-toolbar';
+import { CustomTablePagination } from './custom-table-pagination'; // ✅ NUEVO COMPONENTE
 
 const ESTADO_USUARIO = [
   { value: 'all', label: 'Todos', color: 'default' as PaletteColorKey },
@@ -61,7 +58,6 @@ type TableHeaderCell = {
   align?: 'left' | 'center' | 'right';
 };
 
-// ← TABLA HEADERS RESPONSIVA
 const TABLE_HEAD: TableHeaderCell[] = [
   { id: 'email', label: 'Usuario', sort: true },
   { id: 'nombres', label: 'Nombres', width: { xs: 120, sm: 150, md: 180 }, sort: true },
@@ -69,10 +65,9 @@ const TABLE_HEAD: TableHeaderCell[] = [
   { id: 'tipo', label: 'Tipo', width: { xs: 80, sm: 100, md: 120 }, sort: true },
   { id: 'estado', label: 'Estado', width: { xs: 80, sm: 100, md: 120 }, sort: true },
   { id: 'ultimo_acceso', label: 'Conexión', width: { xs: 100, sm: 120, md: 140 }, sort: true, hide: { xs: true, md: false } },
-  { id: '', label: '', width: 64 }  // Para acciones
+  { id: '', label: '', width: 64 }
 ];
 
-// ← Estilos CSS integrados
 const visuallyHidden = {
   border: 0,
   padding: 0,
@@ -88,19 +83,19 @@ const visuallyHidden = {
 export function UsuarioTableView() {
   const table = useTable();
 
-  // ← ESTADO SIMPLIFICADO: Solo manejar filtros del toolbar
+  // Estado simplificado: Solo manejar filtros del toolbar
   const filters = useSetState<UsuarioWhere>({});
   const { state: toolbarFilters, setState: updateToolbarFilters } = filters;
 
   // Estado para el tab de estado (separado del filtro principal)
   const [selectedTab, setSelectedTab] = useState('all');
 
-  // ← NUEVO: Estado para ordenamiento
+  // Estado para ordenamiento
   const [sortConfig, setSortConfig] = useState<SortConfig>([
     { column: 'nombres', direction: 'asc' }
   ]);
 
-  // ← PARÁMETROS CORREGIDOS CON DEBUG
+  // Parámetros corregidos
   const serviceParams = useMemo((): UsuarioListParams => {
     const conditions: UsuarioWhere[] = [];
 
@@ -148,7 +143,7 @@ export function UsuarioTableView() {
     return params;
   }, [toolbarFilters, table.page, table.rowsPerPage, selectedTab, sortConfig]);
 
-  // ← USAR EL SERVICIO ACTUALIZADO
+  // Usar el servicio actualizado
   const {
     data: usuarios,
     total,
@@ -165,7 +160,7 @@ export function UsuarioTableView() {
     toast.error('Error al cargar usuarios');
   }
 
-  // ← ACTUALIZAR LÓGICA DE canReset
+  // Actualizar lógica de canReset
   const canReset = !!(
     toolbarFilters.OR || // Hay búsqueda de texto
     toolbarFilters.tipo?.in?.length || // Hay filtro de tipo
@@ -174,20 +169,22 @@ export function UsuarioTableView() {
 
   const notFound = (!usuarios.length && canReset) || (!usuarios.length && !isLoading);
 
-  // ← HANDLERS ACTUALIZADOS
+  // ✅ HANDLER para cambiar tab (usado por FiltersResult)
+  const handleTabChange = useCallback((newTab: string) => {
+    table.onResetPage();
+    setSelectedTab(newTab);
+  }, [table]);
 
   const handleFilterStatus = useCallback(
     (event: React.SyntheticEvent, newValue: string) => {
-      table.onResetPage();
-      setSelectedTab(newValue);
+      handleTabChange(newValue);
     },
-    [table]
+    [handleTabChange]
   );
 
-  // ← NUEVO: Handler para ordenamiento
+  // Handler para ordenamiento
   const handleSort = useCallback(
     (columnId: string) => {
-      // Mapear IDs de columna a nombres de campo del backend
       const fieldMapping: Record<string, string> = {
         'email': 'email',
         'nombres': 'nombres',
@@ -203,14 +200,12 @@ export function UsuarioTableView() {
         const existingSort = prevSort.find(s => s.column === fieldName);
 
         if (existingSort) {
-          // Cambiar dirección
           return prevSort.map(s =>
             s.column === fieldName
               ? { ...s, direction: s.direction === 'asc' ? 'desc' : 'asc' }
               : s
           );
         } else {
-          // Agregar nueva columna de ordenamiento (reemplazar el anterior)
           return [{ column: fieldName, direction: 'asc' }];
         }
       });
@@ -220,10 +215,9 @@ export function UsuarioTableView() {
     [table]
   );
 
-  // ← NUEVO: Función para obtener conteo por estado (opcional)
+  // Función para obtener conteo por estado
   const getUsuarioCountByStatus = useCallback((status: string) => {
     if (status === 'all') return total;
-    // Para conteos exactos, podrías mantener un estado separado o hacer consultas adicionales
     return 0;
   }, [total]);
 
@@ -233,7 +227,7 @@ export function UsuarioTableView() {
         sx={{
           display: 'flex',
           flexDirection: 'column',
-          height: { xs: 'calc(100vh - 64px)', md: 'calc(100vh - 80px)' }, // ← 64px móvil, 80px desktop
+          height: { xs: 'calc(100vh - 64px)', md: 'calc(100vh - 80px)' },
         }}
       >
         <Box sx={{ mb: { xs: 1, md: 2 } }}>
@@ -244,8 +238,8 @@ export function UsuarioTableView() {
           sx={{
             display: 'flex',
             flexDirection: 'column',
-            flex: 1, // ← Ocupa el espacio restante
-            overflow: 'hidden', // ← Evita desbordamiento
+            flex: 1,
+            overflow: 'hidden',
           }}
         >
           <Tabs
@@ -255,7 +249,7 @@ export function UsuarioTableView() {
               (theme) => ({
                 px: { md: 2.5 },
                 boxShadow: `inset 0 -2px 0 0 ${varAlpha(theme.vars.palette.grey['500Channel'], 0.08)}`,
-                flexShrink: 0, // ← No se encoge
+                flexShrink: 0,
               }),
             ]}
           >
@@ -277,21 +271,21 @@ export function UsuarioTableView() {
             ))}
           </Tabs>
 
-          <Box sx={{ flexShrink: 0 }}> {/* ← Toolbar fijo */}
+          <Box sx={{ flexShrink: 0 }}>
             <UsuarioTableToolbar
               filters={filters}
               onResetPage={table.onResetPage}
             />
           </Box>
 
-          {/* ← CONTENEDOR DE TABLA CON ALTURA FIJA */}
+          {/* Contenedor de tabla con altura fija */}
           <Box
             sx={{
-              flex: 1, // ← Ocupa el espacio restante
+              flex: 1,
               display: 'flex',
               flexDirection: 'column',
               overflow: 'hidden',
-              minHeight: 0, // ← Importante para Firefox
+              minHeight: 0,
             }}
           >
             <Scrollbar
@@ -307,9 +301,9 @@ export function UsuarioTableView() {
               <Table
                 size={'medium'}
                 sx={{
-                  minWidth: { xs: 600, sm: 800, md: 960 }, // ← Responsive
+                  minWidth: { xs: 600, sm: 800, md: 960 },
                   '& .MuiTableCell-root': {
-                    whiteSpace: 'nowrap', // ← Evita saltos de línea
+                    whiteSpace: 'nowrap',
                     overflow: 'hidden',
                     textOverflow: 'ellipsis',
                   }
@@ -364,7 +358,7 @@ export function UsuarioTableView() {
 
                 <TableBody>
                   {isLoading ? (
-                    // ← Skeleton optimizado
+                    // Skeleton optimizado
                     Array.from({ length: 3 }).map((_, index) => (
                       <TableRow key={index}>
                         {TABLE_HEAD.map((_, cellIndex) => (
@@ -389,7 +383,7 @@ export function UsuarioTableView() {
                     ))
                   )}
 
-                  {/* ← Mensaje cuando no hay datos */}
+                  {/* Mensaje cuando no hay datos */}
                   {!isLoading && usuarios.length === 0 && (
                     <TableRow>
                       <TableCell colSpan={TABLE_HEAD.length} sx={{
@@ -409,18 +403,14 @@ export function UsuarioTableView() {
                 </TableBody>
               </Table>
 
-              {/* ← Espaciador flexible para empujar la paginación hacia abajo */}
+              {/* Espaciador flexible para empujar la paginación hacia abajo */}
               <Box sx={{ flex: 1, minHeight: 20 }} />
             </Scrollbar>
           </Box>
 
-          <Box sx={{
-            flexShrink: 0,
-            borderTop: 1,
-            borderColor: 'divider',
-            position: 'relative'
-          }}>
-            <TablePagination
+          {/* ✅ PAGINACIÓN PERSONALIZADA CON FILTROS */}
+          <Box sx={{ flexShrink: 0 }}>
+            <CustomTablePagination
               page={table.page}
               count={total}
               rowsPerPage={table.rowsPerPage}
@@ -430,7 +420,11 @@ export function UsuarioTableView() {
               component="div"
               showFirstButton
               showLastButton
-              sx={{ borderTopColor: 'transparent' }}
+              // Props específicos para filtros
+              filters={filters}
+              selectedTab={selectedTab}
+              onTabChange={handleTabChange}
+              showFilters={canReset}
             />
           </Box>
         </Card>

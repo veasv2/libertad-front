@@ -1,3 +1,5 @@
+// src/types/query.ts
+
 import type { PaginationConfig, SortConfig } from 'src/types/filters';
 
 /**
