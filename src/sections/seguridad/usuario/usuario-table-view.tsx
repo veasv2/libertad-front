@@ -30,7 +30,10 @@ import { DashboardContent } from 'src/layouts/dashboard';
 import { Usuario } from 'src/models/seguridad/usuario';
 import { ESTADO_USUARIO_OPTIONS, TIPO_USUARIO_OPTIONS } from 'src/types/enums/usuario-enum';
 
-import { useUsuarioList } from 'src/services/seguridad/usuario/usuario-service';
+import {
+  useUsuarioList,
+  useUsuarioStatusSummary
+} from 'src/services/seguridad/usuario/usuario-service';
 import type { UsuarioListParams, UsuarioWhere } from 'src/services/seguridad/usuario/usuario-types';
 import type { SortConfig } from 'src/types/filters';
 
@@ -42,12 +45,19 @@ import { useTable } from 'src/components/table';
 
 import { UsuarioTableRow } from './usuario-table-row';
 import { UsuarioTableToolbar } from './usuario-table-toolbar';
-import { CustomTablePagination } from './custom-table-pagination'; // ✅ NUEVO COMPONENTE
+import { CustomTablePagination } from './custom-table-pagination';
 
-const ESTADO_USUARIO = [
-  { value: 'all', label: 'Todos', color: 'default' as PaletteColorKey },
-  ...ESTADO_USUARIO_OPTIONS
-];
+// Helper para mapear estados a colores
+const getStatusColor = (status: string): PaletteColorKey => {
+  const colorMap: Record<string, PaletteColorKey> = {
+    'ACTIVO': 'success',
+    'INACTIVO': 'default',
+    'SUSPENDIDO': 'warning',
+    'PENDIENTE': 'info',
+    'BAJA': 'error'
+  };
+  return colorMap[status] || 'default';
+};
 
 type TableHeaderCell = {
   id: string;
@@ -95,7 +105,15 @@ export function UsuarioTableView() {
     { column: 'nombres', direction: 'asc' }
   ]);
 
-  // Parámetros corregidos
+  // ✅ NUEVO: Resumen SIN filtros del toolbar (solo totales generales)
+  // Los tabs siempre muestran los totales reales sin importar los filtros del toolbar
+  const {
+    total: summaryTotal,
+    items: summaryItems,
+    isLoading: summaryLoading
+  } = useUsuarioStatusSummary(); // ← SIN filtros, siempre totales generales
+
+  // Parámetros para la lista (incluye TODOS los filtros: tab + toolbar)
   const serviceParams = useMemo((): UsuarioListParams => {
     const conditions: UsuarioWhere[] = [];
 
@@ -131,7 +149,7 @@ export function UsuarioTableView() {
       finalWhere = { AND: conditions };
     }
 
-    const params = {
+    return {
       where: finalWhere,
       pagination: {
         page: table.page + 1,
@@ -139,11 +157,9 @@ export function UsuarioTableView() {
       },
       sort: sortConfig
     };
-
-    return params;
   }, [toolbarFilters, table.page, table.rowsPerPage, selectedTab, sortConfig]);
 
-  // Usar el servicio actualizado
+  // Usar el servicio de lista
   const {
     data: usuarios,
     total,
@@ -162,14 +178,33 @@ export function UsuarioTableView() {
 
   // Actualizar lógica de canReset
   const canReset = !!(
-    toolbarFilters.OR || // Hay búsqueda de texto
-    toolbarFilters.tipo?.in?.length || // Hay filtro de tipo
-    selectedTab !== 'all' // Hay filtro de estado
+    toolbarFilters.OR ||
+    toolbarFilters.tipo?.in?.length ||
+    selectedTab !== 'all'
   );
 
   const notFound = (!usuarios.length && canReset) || (!usuarios.length && !isLoading);
 
-  // ✅ HANDLER para cambiar tab (usado por FiltersResult)
+  // ✅ NUEVO: Construir tabs dinámicos basados en el resumen
+  const dynamicTabs = useMemo(() => {
+    const allTab = {
+      value: 'all',
+      label: 'Todos',
+      color: 'default' as PaletteColorKey,
+      count: summaryTotal
+    };
+
+    const statusTabs = summaryItems.map(item => ({
+      value: item.label,
+      label: item.label,
+      color: getStatusColor(item.label),
+      count: item.value
+    }));
+
+    return [allTab, ...statusTabs];
+  }, [summaryTotal, summaryItems]);
+
+  // Handler para cambiar tab
   const handleTabChange = useCallback((newTab: string) => {
     table.onResetPage();
     setSelectedTab(newTab);
@@ -215,12 +250,6 @@ export function UsuarioTableView() {
     [table]
   );
 
-  // Función para obtener conteo por estado
-  const getUsuarioCountByStatus = useCallback((status: string) => {
-    if (status === 'all') return total;
-    return 0;
-  }, [total]);
-
   return (
     <>
       <DashboardContent
@@ -242,6 +271,7 @@ export function UsuarioTableView() {
             overflow: 'hidden',
           }}
         >
+          {/* ✅ TABS DINÁMICOS basados en el resumen */}
           <Tabs
             value={selectedTab}
             onChange={handleFilterStatus}
@@ -253,7 +283,7 @@ export function UsuarioTableView() {
               }),
             ]}
           >
-            {ESTADO_USUARIO.map((tab) => (
+            {dynamicTabs.map((tab) => (
               <Tab
                 key={tab.value}
                 iconPosition="end"
@@ -264,7 +294,7 @@ export function UsuarioTableView() {
                     variant={tab.value === selectedTab ? 'filled' : 'soft'}
                     color={tab.color}
                   >
-                    {getUsuarioCountByStatus(tab.value)}
+                    {summaryLoading ? '...' : tab.count}
                   </Label>
                 }
               />
@@ -278,7 +308,7 @@ export function UsuarioTableView() {
             />
           </Box>
 
-          {/* Contenedor de tabla con altura fija */}
+          {/* Resto del componente igual... */}
           <Box
             sx={{
               flex: 1,
@@ -358,7 +388,6 @@ export function UsuarioTableView() {
 
                 <TableBody>
                   {isLoading ? (
-                    // Skeleton optimizado
                     Array.from({ length: 3 }).map((_, index) => (
                       <TableRow key={index}>
                         {TABLE_HEAD.map((_, cellIndex) => (
@@ -369,8 +398,7 @@ export function UsuarioTableView() {
                           </TableCell>
                         ))}
                       </TableRow>
-                    )
-                    )
+                    ))
                   ) : (
                     usuarios.map((row) => (
                       <UsuarioTableRow
@@ -383,7 +411,6 @@ export function UsuarioTableView() {
                     ))
                   )}
 
-                  {/* Mensaje cuando no hay datos */}
                   {!isLoading && usuarios.length === 0 && (
                     <TableRow>
                       <TableCell colSpan={TABLE_HEAD.length} sx={{
@@ -403,12 +430,10 @@ export function UsuarioTableView() {
                 </TableBody>
               </Table>
 
-              {/* Espaciador flexible para empujar la paginación hacia abajo */}
               <Box sx={{ flex: 1, minHeight: 20 }} />
             </Scrollbar>
           </Box>
 
-          {/* ✅ PAGINACIÓN PERSONALIZADA CON FILTROS */}
           <Box sx={{ flexShrink: 0 }}>
             <CustomTablePagination
               page={table.page}
@@ -420,7 +445,6 @@ export function UsuarioTableView() {
               component="div"
               showFirstButton
               showLastButton
-              // Props específicos para filtros
               filters={filters}
               selectedTab={selectedTab}
               onTabChange={handleTabChange}

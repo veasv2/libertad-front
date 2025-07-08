@@ -3,7 +3,7 @@
 import useSWR from 'swr';
 import { useMemo } from 'react';
 import type { SWRConfiguration } from 'swr';
-import { getFetcher } from 'src/http/fetcher';
+import { postFetcher } from 'src/http/fetcher';
 import type {
     SummaryItem,
     SummaryResult,
@@ -16,23 +16,6 @@ const swrOptions: SWRConfiguration = {
     revalidateOnReconnect: false,
 };
 
-/**
- * Hook genérico para obtener resúmenes desde cualquier endpoint
- * 
- * @param endpoint - URL del endpoint que retorna el resumen
- * @param params - Parámetros a enviar al endpoint (filtros, groupBy, etc.)
- * 
- * @example
- * // Uso básico
- * const summary = useSummary('/api/v1/usuarios/resumen', { groupBy: 'estado' });
- * 
- * @example
- * // Con filtros
- * const summary = useSummary('/api/v1/usuarios/resumen', { 
- *   groupBy: 'estado',
- *   filters: { tipo: 'ADMIN' }
- * });
- */
 export function useSummary(
     endpoint: string,
     params?: Record<string, any>
@@ -41,7 +24,7 @@ export function useSummary(
 
     const { data, isLoading, error, isValidating, mutate } = useSWR<SummaryApiResponse>(
         swrKey,
-        getFetcher,
+        postFetcher,
         swrOptions
     );
 
