@@ -1,9 +1,3 @@
-// src/sections/seguridad/usuario/usuario-active-filters.tsx
-
-import type { UseSetStateReturn } from 'minimal-shared/hooks';
-import type { UsuarioWhere } from 'src/services/seguridad/usuario/usuario-types';
-import type { TipoUsuarioValue } from 'src/types/enums/usuario-enum';
-
 import { useState, useCallback } from 'react';
 
 import Box from '@mui/material/Box';
@@ -18,30 +12,30 @@ import DialogActions from '@mui/material/DialogActions';
 
 import { Iconify } from 'src/components/iconify';
 import { TIPO_USUARIO_OPTIONS, ESTADO_USUARIO_OPTIONS } from 'src/types/enums/usuario-enum';
+import { useUsuarioFilters } from './usuario-filters-context';
 
 // ----------------------------------------------------------------------
 
 type Props = {
-    filters: UseSetStateReturn<UsuarioWhere>;
-    selectedTab: string;
-    onTabChange: (newTab: string) => void;
     totalResults?: number;
-    compact?: boolean; // Nueva prop para modo compacto
+    compact?: boolean;
     sx?: any;
 };
 
-export function UsuarioActiveFilters({
-    filters,
-    selectedTab,
-    onTabChange,
-    totalResults,
-    sx
-}: Props) {
-    const { state: currentFilters, setState: updateFilters, resetState: resetFilters } = filters;
+export function UsuarioActiveFilters({ totalResults, sx }: Props) {
+    const {
+        state,
+        setSearch,
+        setTipo,
+        setEstado,
+        resetAllFilters,
+        hasActiveFilters
+    } = useUsuarioFilters();
+
     const [showPopup, setShowPopup] = useState(false);
 
     // Helper para obtener el label del tipo de usuario
-    const getTipoLabel = useCallback((tipoValue: TipoUsuarioValue) => {
+    const getTipoLabel = useCallback((tipoValue: string) => {
         return TIPO_USUARIO_OPTIONS.find(option => option.value === tipoValue)?.label || tipoValue;
     }, []);
 
@@ -50,84 +44,38 @@ export function UsuarioActiveFilters({
         return ESTADO_USUARIO_OPTIONS.find(option => option.value === estadoValue)?.label || estadoValue;
     }, []);
 
-    // Helper para extraer el término de búsqueda del filtro OR
-    const getSearchTerm = useCallback(() => {
-        if (!currentFilters.OR || !Array.isArray(currentFilters.OR) || currentFilters.OR.length === 0) {
-            return null;
-        }
-
-        const searchFilter = currentFilters.OR.find(filter =>
-            filter.nombres?.contains ||
-            filter.apellido_paterno?.contains ||
-            filter.apellido_materno?.contains ||
-            filter.email?.contains ||
-            filter.dni?.contains
-        );
-
-        if (searchFilter) {
-            return searchFilter.nombres?.contains ||
-                searchFilter.apellido_paterno?.contains ||
-                searchFilter.apellido_materno?.contains ||
-                searchFilter.email?.contains ||
-                searchFilter.dni?.contains;
-        }
-
-        return null;
-    }, [currentFilters.OR]);
-
     // Handlers para remover filtros específicos
     const handleRemoveSearch = useCallback(() => {
-        updateFilters(prev => {
-            const newFilters = { ...prev };
-            delete newFilters.OR;
-            return newFilters;
-        });
-    }, [updateFilters]);
+        setSearch('');
+    }, [setSearch]);
 
-    const handleRemoveTipo = useCallback((inputValue?: TipoUsuarioValue) => {
+    const handleRemoveTipo = useCallback((inputValue?: string) => {
         if (inputValue) {
-            const newValue = (currentFilters.tipo?.in || []).filter((item) => item !== inputValue);
-            updateFilters(prev => ({
-                ...prev,
-                tipo: newValue.length > 0 ? { in: newValue } : undefined
-            }));
+            const newValue = state.tipo.filter((item) => item !== inputValue);
+            setTipo(newValue);
         } else {
-            // Remover todo el filtro de tipo
-            updateFilters(prev => {
-                const newFilters = { ...prev };
-                delete newFilters.tipo;
-                return newFilters;
-            });
+            setTipo([]);
         }
-    }, [updateFilters, currentFilters.tipo?.in]);
+    }, [setTipo, state.tipo]);
 
     const handleRemoveEstado = useCallback(() => {
-        onTabChange('all');
-    }, [onTabChange]);
+        setEstado('all');
+    }, [setEstado]);
 
     // Reset completo
     const handleClearAll = useCallback(() => {
-        resetFilters();
-        onTabChange('all');
+        resetAllFilters();
         setShowPopup(false);
-    }, [resetFilters, onTabChange]);
-
-    // Obtener datos para mostrar
-    const searchTerm = getSearchTerm();
-    const tipoFilters = currentFilters.tipo?.in || [];
-    const hasEstadoFilter = selectedTab !== 'all';
-
-    // Verificar si hay filtros
-    const hasFilters = !!(searchTerm || tipoFilters.length > 0 || hasEstadoFilter);
+    }, [resetAllFilters]);
 
     // Función para obtener el texto del contador de filtros
     const getFilterCount = useCallback(() => {
         let count = 0;
-        if (searchTerm) count++;
-        if (tipoFilters.length > 0) count++;
-        if (hasEstadoFilter) count++;
+        if (state.search) count++;
+        if (state.tipo.length > 0) count++;
+        if (state.estado !== 'all') count++;
         return count;
-    }, [searchTerm, tipoFilters.length, hasEstadoFilter]);
+    }, [state.search, state.tipo.length, state.estado]);
 
     // Componente de filtro individual en popup
     const FilterItem = ({
@@ -156,7 +104,7 @@ export function UsuarioActiveFilters({
                 },
             }}
         >
-            <IconButton color="error" onClick={onRemove} >
+            <IconButton color="error" onClick={onRemove}>
                 <Iconify icon="solar:close-circle-bold" />
             </IconButton>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flex: 1 }}>
@@ -216,32 +164,31 @@ export function UsuarioActiveFilters({
 
             <DialogContent sx={{ p: 3 }}>
                 <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-
                     {/* Filtro de búsqueda */}
-                    {searchTerm && (
+                    {state.search && (
                         <FilterItem
                             field="Búsqueda"
                             operator="contiene"
-                            value={`"${searchTerm}"`}
+                            value={`"${state.search}"`}
                             onRemove={handleRemoveSearch}
                         />
                     )}
 
-                    {/* Filtros de tipo (agrupados o individuales) */}
-                    {tipoFilters.length > 0 && (
+                    {/* Filtros de tipo */}
+                    {state.tipo.length > 0 && (
                         <>
-                            {tipoFilters.length === 1 ? (
+                            {state.tipo.length === 1 ? (
                                 <FilterItem
                                     field="Tipo"
                                     operator="es"
-                                    value={getTipoLabel(tipoFilters[0])}
-                                    onRemove={() => handleRemoveTipo(tipoFilters[0])}
+                                    value={getTipoLabel(state.tipo[0])}
+                                    onRemove={() => handleRemoveTipo(state.tipo[0])}
                                 />
                             ) : (
                                 <FilterItem
                                     field="Tipo"
                                     operator="en"
-                                    value={`(${tipoFilters.map(getTipoLabel).join(', ')})`}
+                                    value={`(${state.tipo.map(getTipoLabel).join(', ')})`}
                                     onRemove={() => handleRemoveTipo()}
                                 />
                             )}
@@ -249,17 +196,17 @@ export function UsuarioActiveFilters({
                     )}
 
                     {/* Filtro de estado */}
-                    {hasEstadoFilter && (
+                    {state.estado !== 'all' && (
                         <FilterItem
                             field="Estado"
                             operator="es"
-                            value={getEstadoLabel(selectedTab)}
+                            value={getEstadoLabel(state.estado)}
                             onRemove={handleRemoveEstado}
                         />
                     )}
 
                     {/* Mensaje si no hay filtros */}
-                    {!hasFilters && (
+                    {!hasActiveFilters && (
                         <Box
                             sx={{
                                 textAlign: 'center',
@@ -294,7 +241,7 @@ export function UsuarioActiveFilters({
                     color="error"
                     startIcon={<Iconify icon="solar:trash-bin-trash-bold" width={18} />}
                     onClick={handleClearAll}
-                    disabled={!hasFilters}
+                    disabled={!hasActiveFilters}
                 >
                     Limpiar todos los filtros
                 </Button>
@@ -303,7 +250,7 @@ export function UsuarioActiveFilters({
     );
 
     // Si no hay filtros, no mostrar nada
-    if (!hasFilters) {
+    if (!hasActiveFilters) {
         return null;
     }
 
@@ -368,5 +315,4 @@ export function UsuarioActiveFilters({
             {renderFilterPopup()}
         </>
     );
-
 }

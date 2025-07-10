@@ -1,7 +1,4 @@
-// src/sections/seguridad/usuario/usuario-table-toolbar.tsx
-
 import type { SelectChangeEvent } from '@mui/material/Select';
-import type { UseSetStateReturn } from 'minimal-shared/hooks';
 
 import { useState, useCallback, useEffect } from 'react';
 import { usePopover } from 'minimal-shared/hooks';
@@ -18,61 +15,29 @@ import FormControl from '@mui/material/FormControl';
 import Button from '@mui/material/Button';
 import InputAdornment from '@mui/material/InputAdornment';
 
-import type { UsuarioWhere } from 'src/services/seguridad/usuario/usuario-types';
 import type { TipoUsuarioValue } from 'src/types/enums/usuario-enum';
 import { Iconify } from 'src/components/iconify';
 import { CustomPopover } from 'src/components/custom-popover';
 import { RouterLink } from 'src/routes/components';
 import { paths } from 'src/routes/paths';
 import { TIPO_USUARIO_OPTIONS } from 'src/types/enums/usuario-enum';
+import { useUsuarioFilters } from './usuario-filters-context';
 
 // ----------------------------------------------------------------------
 
-type Props = {
-  onResetPage: () => void;
-  filters: UseSetStateReturn<UsuarioWhere>;
-  options?: {};
-};
-
-export function UsuarioTableToolbar({ filters, onResetPage }: Props) {
+export function UsuarioTableToolbar() {
   const menuActions = usePopover();
-  const { state: currentFilters, setState: updateFilters } = filters;
+  const { state, applyToolbarFilters } = useUsuarioFilters();
 
   // Estados locales para manejar inputs antes de aplicar
-  const [localSearch, setLocalSearch] = useState('');
-  const [localTipo, setLocalTipo] = useState<TipoUsuarioValue[]>([]);
+  const [localSearch, setLocalSearch] = useState(state.search);
+  const [localTipo, setLocalTipo] = useState<TipoUsuarioValue[]>(state.tipo);
 
-  // ✅ SINCRONIZACIÓN INICIAL: Extraer valores de los filtros actuales al cargar
+  // Sincronizar estados locales cuando cambie el estado del contexto
   useEffect(() => {
-    // Extraer término de búsqueda del filtro OR
-    if (currentFilters.OR && Array.isArray(currentFilters.OR) && currentFilters.OR.length > 0) {
-      const searchFilter = currentFilters.OR.find(filter =>
-        filter.nombres?.contains ||
-        filter.apellido_paterno?.contains ||
-        filter.apellido_materno?.contains ||
-        filter.email?.contains ||
-        filter.dni?.contains
-      );
-
-      if (searchFilter) {
-        const searchTerm = searchFilter.nombres?.contains ||
-          searchFilter.apellido_paterno?.contains ||
-          searchFilter.apellido_materno?.contains ||
-          searchFilter.email?.contains ||
-          searchFilter.dni?.contains;
-        setLocalSearch(searchTerm || '');
-      }
-    } else {
-      setLocalSearch('');
-    }
-
-    // Extraer tipos seleccionados
-    if (currentFilters.tipo?.in && Array.isArray(currentFilters.tipo.in)) {
-      setLocalTipo(currentFilters.tipo.in);
-    } else {
-      setLocalTipo([]);
-    }
-  }, [currentFilters]);
+    setLocalSearch(state.search);
+    setLocalTipo(state.tipo);
+  }, [state.search, state.tipo]);
 
   const handleChangeSearch = useCallback(
     (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -91,31 +56,9 @@ export function UsuarioTableToolbar({ filters, onResetPage }: Props) {
     []
   );
 
-  // ✅ CORREGIDO: Lógica de aplicación que REEMPLAZA completamente los filtros
   const handleApplyFilters = useCallback(() => {
-    const newWhere: UsuarioWhere = {};
-
-    // Construir filtro de búsqueda de texto (solo si hay contenido)
-    if (localSearch && localSearch.trim()) {
-      const searchTerm = localSearch.trim();
-      newWhere.OR = [
-        { nombres: { contains: searchTerm } },
-        { apellido_paterno: { contains: searchTerm } },
-        { apellido_materno: { contains: searchTerm } },
-        { email: { contains: searchTerm } },
-        { dni: { contains: searchTerm } }
-      ];
-    }
-
-    // Construir filtro de tipo (solo si hay selecciones)
-    if (localTipo && localTipo.length > 0) {
-      newWhere.tipo = { in: localTipo };
-    }
-
-    // ✅ CLAVE: REEMPLAZAR completamente los filtros (no hacer merge)
-    updateFilters(newWhere);
-    onResetPage();
-  }, [localSearch, localTipo, updateFilters, onResetPage]);
+    applyToolbarFilters(localSearch, localTipo);
+  }, [localSearch, localTipo, applyToolbarFilters]);
 
   const handleKeyDown = useCallback(
     (event: React.KeyboardEvent<HTMLInputElement>) => {

@@ -1,12 +1,9 @@
-// src/sections/seguridad/usuario/usuario-table-view.tsx
-
 'use client';
 
 import { useState, useCallback, useMemo } from 'react';
 
 import Typography from '@mui/material/Typography';
 import { varAlpha } from 'minimal-shared/utils';
-import { useBoolean, useSetState } from 'minimal-shared/hooks';
 
 import Box from '@mui/material/Box';
 import Tab from '@mui/material/Tab';
@@ -34,18 +31,16 @@ import {
   useUsuarioList,
   useUsuarioStatusSummary
 } from 'src/services/seguridad/usuario/usuario-service';
-import type { UsuarioListParams, UsuarioWhere } from 'src/services/seguridad/usuario/usuario-types';
-import type { SortConfig } from 'src/types/filters';
 
 import { Label } from 'src/components/label';
 import { toast } from 'src/components/snackbar';
 import { Scrollbar } from 'src/components/scrollbar';
-import { ConfirmDialog } from 'src/components/custom-dialog';
 import { useTable } from 'src/components/table';
 
 import { UsuarioTableRow } from './usuario-table-row';
 import { UsuarioTableToolbar } from './usuario-table-toolbar';
 import { CustomTablePagination } from './custom-table-pagination';
+import { UsuarioFiltersProvider, useUsuarioFilters } from './usuario-filters-context';
 
 // Helper para mapear estados a colores
 const getStatusColor = (status: string): PaletteColorKey => {
@@ -90,76 +85,29 @@ const visuallyHidden = {
   clip: 'rect(0 0 0 0)',
 };
 
-export function UsuarioTableView() {
+// Componente interno que usa el contexto
+function UsuarioTableViewContent() {
   const table = useTable();
+  const {
+    state,
+    setEstado,
+    setSort,
+    setPage,
+    setPageSize,
+    hasActiveFilters,
+    canReset,
+    getServiceParams
+  } = useUsuarioFilters();
 
-  // Estado simplificado: Solo manejar filtros del toolbar
-  const filters = useSetState<UsuarioWhere>({});
-  const { state: toolbarFilters, setState: updateToolbarFilters } = filters;
-
-  // Estado para el tab de estado (separado del filtro principal)
-  const [selectedTab, setSelectedTab] = useState('all');
-
-  // Estado para ordenamiento
-  const [sortConfig, setSortConfig] = useState<SortConfig>([
-    { column: 'nombres', direction: 'asc' }
-  ]);
-
-  // ✅ NUEVO: Resumen SIN filtros del toolbar (solo totales generales)
-  // Los tabs siempre muestran los totales reales sin importar los filtros del toolbar
+  // Resumen SIN filtros del toolbar (solo totales generales)
   const {
     total: summaryTotal,
     items: summaryItems,
     isLoading: summaryLoading
-  } = useUsuarioStatusSummary(); // ← SIN filtros, siempre totales generales
+  } = useUsuarioStatusSummary();
 
-  // Parámetros para la lista (incluye TODOS los filtros: tab + toolbar)
-  const serviceParams = useMemo((): UsuarioListParams => {
-    const conditions: UsuarioWhere[] = [];
-
-    // 1. Filtro de búsqueda de texto (OR anidado)
-    if (toolbarFilters.OR && toolbarFilters.OR.length > 0) {
-      conditions.push({
-        OR: toolbarFilters.OR
-      });
-    }
-
-    // 2. Filtro de tipo (AND)
-    if (toolbarFilters.tipo && toolbarFilters.tipo.in && toolbarFilters.tipo.in.length > 0) {
-      conditions.push({
-        tipo: toolbarFilters.tipo
-      });
-    }
-
-    // 3. Filtro de estado del tab (AND)
-    if (selectedTab !== 'all') {
-      conditions.push({
-        estado: { equals: selectedTab }
-      });
-    }
-
-    // Construir el WHERE final
-    let finalWhere: UsuarioWhere | undefined;
-
-    if (conditions.length === 0) {
-      finalWhere = undefined;
-    } else if (conditions.length === 1) {
-      finalWhere = conditions[0];
-    } else {
-      finalWhere = { AND: conditions };
-    }
-
-    return {
-      where: finalWhere,
-      pagination: {
-        page: table.page + 1,
-        pageSize: table.rowsPerPage,
-      },
-      sort: sortConfig
-    };
-  }, [toolbarFilters, table.page, table.rowsPerPage, selectedTab, sortConfig]);
-
-  // Usar el servicio de lista
+  // Usar el servicio de lista con parámetros del contexto
+  const serviceParams = getServiceParams();
   const {
     data: usuarios,
     total,
@@ -176,16 +124,9 @@ export function UsuarioTableView() {
     toast.error('Error al cargar usuarios');
   }
 
-  // Actualizar lógica de canReset
-  const canReset = !!(
-    toolbarFilters.OR ||
-    toolbarFilters.tipo?.in?.length ||
-    selectedTab !== 'all'
-  );
-
   const notFound = (!usuarios.length && canReset) || (!usuarios.length && !isLoading);
 
-  // ✅ NUEVO: Construir tabs dinámicos basados en el resumen
+  // Construir tabs dinámicos basados en el resumen
   const dynamicTabs = useMemo(() => {
     const allTab = {
       value: 'all',
@@ -205,16 +146,11 @@ export function UsuarioTableView() {
   }, [summaryTotal, summaryItems]);
 
   // Handler para cambiar tab
-  const handleTabChange = useCallback((newTab: string) => {
-    table.onResetPage();
-    setSelectedTab(newTab);
-  }, [table]);
-
   const handleFilterStatus = useCallback(
     (event: React.SyntheticEvent, newValue: string) => {
-      handleTabChange(newValue);
+      setEstado(newValue);
     },
-    [handleTabChange]
+    [setEstado]
   );
 
   // Handler para ordenamiento
@@ -231,228 +167,235 @@ export function UsuarioTableView() {
       const fieldName = fieldMapping[columnId];
       if (!fieldName) return;
 
-      setSortConfig(prevSort => {
-        const existingSort = prevSort.find(s => s.column === fieldName);
+      const existingSort = state.sort.find(s => s.column === fieldName);
 
-        if (existingSort) {
-          return prevSort.map(s =>
-            s.column === fieldName
-              ? { ...s, direction: s.direction === 'asc' ? 'desc' : 'asc' }
-              : s
-          );
-        } else {
-          return [{ column: fieldName, direction: 'asc' }];
-        }
-      });
-
-      table.onResetPage();
+      if (existingSort) {
+        const newSort = state.sort.map(s =>
+          s.column === fieldName
+            ? { ...s, direction: s.direction === 'asc' ? 'desc' : 'asc' }
+            : s
+        );
+        setSort(newSort);
+      } else {
+        setSort([{ column: fieldName, direction: 'asc' }]);
+      }
     },
-    [table]
+    [state.sort, setSort]
   );
 
+  // Handlers para paginación
+  const handlePageChange = useCallback((event: unknown, newPage: number) => {
+    setPage(newPage);
+  }, [setPage]);
+
+  const handleRowsPerPageChange = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
+    setPageSize(parseInt(event.target.value, 10));
+  }, [setPageSize]);
+
   return (
-    <>
-      <DashboardContent
+    <DashboardContent
+      sx={{
+        display: 'flex',
+        flexDirection: 'column',
+        height: { xs: 'calc(100vh - 64px)', md: 'calc(100vh - 80px)' },
+      }}
+    >
+      <Box sx={{ mb: { xs: 1, md: 2 } }}>
+        <Typography variant="h5">Lista de Usuarios</Typography>
+      </Box>
+
+      <Card
         sx={{
           display: 'flex',
           flexDirection: 'column',
-          height: { xs: 'calc(100vh - 64px)', md: 'calc(100vh - 80px)' },
+          flex: 1,
+          overflow: 'hidden',
         }}
       >
-        <Box sx={{ mb: { xs: 1, md: 2 } }}>
-          <Typography variant="h5">Lista de Usuarios</Typography>
+        {/* Tabs dinámicos */}
+        <Tabs
+          value={state.estado}
+          onChange={handleFilterStatus}
+          sx={[
+            (theme) => ({
+              px: { md: 2.5 },
+              boxShadow: `inset 0 -2px 0 0 ${varAlpha(theme.vars.palette.grey['500Channel'], 0.08)}`,
+              flexShrink: 0,
+            }),
+          ]}
+        >
+          {dynamicTabs.map((tab) => (
+            <Tab
+              key={tab.value}
+              iconPosition="end"
+              value={tab.value}
+              label={tab.label}
+              icon={
+                <Label
+                  variant={tab.value === state.estado ? 'filled' : 'soft'}
+                  color={tab.color}
+                >
+                  {summaryLoading ? '...' : tab.count}
+                </Label>
+              }
+            />
+          ))}
+        </Tabs>
+
+        <Box sx={{ flexShrink: 0 }}>
+          <UsuarioTableToolbar />
         </Box>
 
-        <Card
+        {/* Tabla */}
+        <Box
           sx={{
+            flex: 1,
             display: 'flex',
             flexDirection: 'column',
-            flex: 1,
             overflow: 'hidden',
+            minHeight: 0,
           }}
         >
-          {/* ✅ TABS DINÁMICOS basados en el resumen */}
-          <Tabs
-            value={selectedTab}
-            onChange={handleFilterStatus}
-            sx={[
-              (theme) => ({
-                px: { md: 2.5 },
-                boxShadow: `inset 0 -2px 0 0 ${varAlpha(theme.vars.palette.grey['500Channel'], 0.08)}`,
-                flexShrink: 0,
-              }),
-            ]}
-          >
-            {dynamicTabs.map((tab) => (
-              <Tab
-                key={tab.value}
-                iconPosition="end"
-                value={tab.value}
-                label={tab.label}
-                icon={
-                  <Label
-                    variant={tab.value === selectedTab ? 'filled' : 'soft'}
-                    color={tab.color}
-                  >
-                    {summaryLoading ? '...' : tab.count}
-                  </Label>
-                }
-              />
-            ))}
-          </Tabs>
-
-          <Box sx={{ flexShrink: 0 }}>
-            <UsuarioTableToolbar
-              filters={filters}
-              onResetPage={table.onResetPage}
-            />
-          </Box>
-
-          {/* Resto del componente igual... */}
-          <Box
+          <Scrollbar
             sx={{
               flex: 1,
-              display: 'flex',
-              flexDirection: 'column',
-              overflow: 'hidden',
-              minHeight: 0,
+              '& .simplebar-content': {
+                height: '100%',
+                display: 'flex',
+                flexDirection: 'column',
+              }
             }}
           >
-            <Scrollbar
+            <Table
+              size={'medium'}
               sx={{
-                flex: 1,
-                '& .simplebar-content': {
-                  height: '100%',
-                  display: 'flex',
-                  flexDirection: 'column',
+                minWidth: { xs: 600, sm: 800, md: 960 },
+                '& .MuiTableCell-root': {
+                  whiteSpace: 'nowrap',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
                 }
               }}
             >
-              <Table
-                size={'medium'}
+              <TableHead
                 sx={{
-                  minWidth: { xs: 600, sm: 800, md: 960 },
                   '& .MuiTableCell-root': {
-                    whiteSpace: 'nowrap',
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
+                    position: 'sticky',
+                    top: 0,
+                    zIndex: 1,
                   }
-                }}
-              >
-                <TableHead
-                  sx={{
-                    '& .MuiTableCell-root': {
-                      position: 'sticky',
-                      top: 0,
-                      zIndex: 1,
-                    }
-                  }}>
-                  <TableRow>
-                    {TABLE_HEAD.map((headCell) => (
-                      <TableCell
-                        key={headCell.id}
-                        align={headCell.align || 'left'}
-                        sortDirection={
-                          sortConfig?.[0]?.column === headCell.id
-                            ? sortConfig[0].direction
-                            : false
-                        }
-                        sx={{ width: headCell.width }}
-                      >
-                        {headCell.sort && headCell.id ? (
-                          <TableSortLabel
-                            hideSortIcon
-                            active={sortConfig?.[0]?.column === headCell.id}
-                            direction={
-                              sortConfig?.[0]?.column === headCell.id
-                                ? sortConfig[0].direction
-                                : 'asc'
-                            }
-                            onClick={() => handleSort(headCell.id)}
-                          >
-                            {headCell.label}
+                }}>
+                <TableRow>
+                  {TABLE_HEAD.map((headCell) => (
+                    <TableCell
+                      key={headCell.id}
+                      align={headCell.align || 'left'}
+                      sortDirection={
+                        state.sort?.[0]?.column === headCell.id
+                          ? state.sort[0].direction
+                          : false
+                      }
+                      sx={{ width: headCell.width }}
+                    >
+                      {headCell.sort && headCell.id ? (
+                        <TableSortLabel
+                          hideSortIcon
+                          active={state.sort?.[0]?.column === headCell.id}
+                          direction={
+                            state.sort?.[0]?.column === headCell.id
+                              ? state.sort[0].direction
+                              : 'asc'
+                          }
+                          onClick={() => handleSort(headCell.id)}
+                        >
+                          {headCell.label}
 
-                            {sortConfig?.[0]?.column === headCell.id ? (
-                              <Box component="span" sx={visuallyHidden}>
-                                {sortConfig[0].direction === 'desc' ? 'sorted descending' : 'sorted ascending'}
-                              </Box>
-                            ) : null}
-                          </TableSortLabel>
-                        ) : (
-                          headCell.label
-                        )}
-                      </TableCell>
-                    ))}
-                  </TableRow>
-                </TableHead>
-
-                <TableBody>
-                  {isLoading ? (
-                    Array.from({ length: 3 }).map((_, index) => (
-                      <TableRow key={index}>
-                        {TABLE_HEAD.map((_, cellIndex) => (
-                          <TableCell key={cellIndex}>
-                            <Box sx={{ width: '100%' }}>
-                              <Skeleton variant="text" />
+                          {state.sort?.[0]?.column === headCell.id ? (
+                            <Box component="span" sx={visuallyHidden}>
+                              {state.sort[0].direction === 'desc' ? 'sorted descending' : 'sorted ascending'}
                             </Box>
-                          </TableCell>
-                        ))}
-                      </TableRow>
-                    ))
-                  ) : (
-                    usuarios.map((row) => (
-                      <UsuarioTableRow
-                        key={row.uuid}
-                        row={row}
-                        selected={table.selected.includes(row.uuid)}
-                        onSelectRow={() => table.onSelectRow(row.uuid)}
-                        editHref={paths.seguridad.user.edit(row.uuid)}
-                      />
-                    ))
-                  )}
+                          ) : null}
+                        </TableSortLabel>
+                      ) : (
+                        headCell.label
+                      )}
+                    </TableCell>
+                  ))}
+                </TableRow>
+              </TableHead>
 
-                  {!isLoading && usuarios.length === 0 && (
-                    <TableRow>
-                      <TableCell colSpan={TABLE_HEAD.length} sx={{
-                        textAlign: 'center',
-                        py: 10,
-                        color: 'text.secondary'
-                      }}>
-                        <Typography variant="h6" gutterBottom>
-                          No hay registros para mostrar
-                        </Typography>
-                        <Typography variant="body2">
-                          Prueba ajustando los filtros o agrega nuevos registros.
-                        </Typography>
-                      </TableCell>
+              <TableBody>
+                {isLoading ? (
+                  Array.from({ length: 3 }).map((_, index) => (
+                    <TableRow key={index}>
+                      {TABLE_HEAD.map((_, cellIndex) => (
+                        <TableCell key={cellIndex}>
+                          <Box sx={{ width: '100%' }}>
+                            <Skeleton variant="text" />
+                          </Box>
+                        </TableCell>
+                      ))}
                     </TableRow>
-                  )}
-                </TableBody>
-              </Table>
+                  ))
+                ) : (
+                  usuarios.map((row) => (
+                    <UsuarioTableRow
+                      key={row.uuid}
+                      row={row}
+                      selected={table.selected.includes(row.uuid)}
+                      onSelectRow={() => table.onSelectRow(row.uuid)}
+                      editHref={paths.seguridad.user.edit(row.uuid)}
+                    />
+                  ))
+                )}
 
-              <Box sx={{ flex: 1, minHeight: 20 }} />
-            </Scrollbar>
-          </Box>
+                {!isLoading && usuarios.length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={TABLE_HEAD.length} sx={{
+                      textAlign: 'center',
+                      py: 10,
+                      color: 'text.secondary'
+                    }}>
+                      <Typography variant="h6" gutterBottom>
+                        No hay registros para mostrar
+                      </Typography>
+                      <Typography variant="body2">
+                        Prueba ajustando los filtros o agrega nuevos registros.
+                      </Typography>
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
 
-          <Box sx={{ flexShrink: 0 }}>
-            <CustomTablePagination
-              page={table.page}
-              count={total}
-              rowsPerPage={table.rowsPerPage}
-              onPageChange={table.onChangePage}
-              onRowsPerPageChange={table.onChangeRowsPerPage}
-              rowsPerPageOptions={[5, 10, 25]}
-              component="div"
-              showFirstButton
-              showLastButton
-              filters={filters}
-              selectedTab={selectedTab}
-              onTabChange={handleTabChange}
-              showFilters={canReset}
-            />
-          </Box>
-        </Card>
-      </DashboardContent>
-    </>
+            <Box sx={{ flex: 1, minHeight: 20 }} />
+          </Scrollbar>
+        </Box>
+
+        <Box sx={{ flexShrink: 0 }}>
+          <CustomTablePagination
+            page={state.page}
+            count={total}
+            rowsPerPage={state.pageSize}
+            onPageChange={handlePageChange}
+            onRowsPerPageChange={handleRowsPerPageChange}
+            rowsPerPageOptions={[5, 10, 25]}
+            component="div"
+            showFirstButton
+            showLastButton
+            showFilters={canReset}
+          />
+        </Box>
+      </Card>
+    </DashboardContent>
+  );
+}
+
+// Componente principal que provee el contexto
+export function UsuarioTableView() {
+  return (
+    <UsuarioFiltersProvider>
+      <UsuarioTableViewContent />
+    </UsuarioFiltersProvider>
   );
 }
