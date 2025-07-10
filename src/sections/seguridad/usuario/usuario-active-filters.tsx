@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 
 import Box from '@mui/material/Box';
 import Chip from '@mui/material/Chip';
@@ -23,14 +23,20 @@ type Props = {
 };
 
 export function UsuarioActiveFilters({ totalResults, sx }: Props) {
+    // ✅ Usar el contexto en lugar de props
     const {
         state,
+        hasPendingChanges,
         setSearch,
         setTipo,
         setEstado,
         resetAllFilters,
-        hasActiveFilters
+        hasActiveFilters,
+        applyToolbarFilters // ✅ AGREGADO: Para aplicar filtros inmediatamente
     } = useUsuarioFilters();
+
+    // ✅ Usar la función hasPendingChanges sin parámetros para el estado actual
+    const currentHasPendingChanges = hasPendingChanges();
 
     const [showPopup, setShowPopup] = useState(false);
 
@@ -44,38 +50,55 @@ export function UsuarioActiveFilters({ totalResults, sx }: Props) {
         return ESTADO_USUARIO_OPTIONS.find(option => option.value === estadoValue)?.label || estadoValue;
     }, []);
 
-    // Handlers para remover filtros específicos
+    // ✅ MODIFICADO: Handlers para remover filtros específicos y aplicar inmediatamente
     const handleRemoveSearch = useCallback(() => {
-        setSearch('');
-    }, [setSearch]);
+        // Aplicar inmediatamente el filtro sin el search
+        applyToolbarFilters('', state.tipo);
+    }, [applyToolbarFilters, state.tipo]);
 
     const handleRemoveTipo = useCallback((inputValue?: string) => {
+        let newTipo: typeof state.tipo;
+
         if (inputValue) {
-            const newValue = state.tipo.filter((item) => item !== inputValue);
-            setTipo(newValue);
+            newTipo = state.tipo.filter((item) => item !== inputValue);
         } else {
-            setTipo([]);
+            newTipo = [];
         }
-    }, [setTipo, state.tipo]);
+
+        // Aplicar inmediatamente el filtro con el nuevo tipo
+        applyToolbarFilters(state.search, newTipo);
+    }, [applyToolbarFilters, state.search, state.tipo]);
 
     const handleRemoveEstado = useCallback(() => {
         setEstado('all');
+        // El estado se aplica inmediatamente porque no forma parte de los filtros del toolbar
     }, [setEstado]);
 
-    // Reset completo
+    // ✅ MODIFICADO: Reset completo que aplica inmediatamente
     const handleClearAll = useCallback(() => {
         resetAllFilters();
         setShowPopup(false);
+        // resetAllFilters ya maneja la aplicación inmediata
     }, [resetAllFilters]);
 
-    // Función para obtener el texto del contador de filtros
+    // ✅ CORREGIDO: Función para obtener el contador de filtros aplicados
     const getFilterCount = useCallback(() => {
         let count = 0;
-        if (state.search) count++;
-        if (state.tipo.length > 0) count++;
+        // Solo contar filtros que están realmente aplicados (no los cambios pendientes)
+        if (state.search && !currentHasPendingChanges) count++;
+        if (state.tipo.length > 0 && !currentHasPendingChanges) count++;
         if (state.estado !== 'all') count++;
         return count;
-    }, [state.search, state.tipo.length, state.estado]);
+    }, [state.search, state.tipo.length, state.estado, currentHasPendingChanges]);
+
+    // ✅ CORREGIDO: Verificar filtros aplicados vs pendientes
+    const hasAppliedFilters = useMemo(() => {
+        return !!(
+            (state.search && !currentHasPendingChanges) ||
+            (state.tipo.length > 0 && !currentHasPendingChanges) ||
+            state.estado !== 'all'
+        );
+    }, [state.search, state.tipo.length, state.estado, currentHasPendingChanges]);
 
     // Componente de filtro individual en popup
     const FilterItem = ({
@@ -155,6 +178,11 @@ export function UsuarioActiveFilters({ totalResults, sx }: Props) {
                     <Typography variant="h6" sx={{ fontWeight: 700 }}>
                         Filtros aplicados actualmente.
                     </Typography>
+                    {currentHasPendingChanges && (
+                        <Typography variant="caption" sx={{ color: 'warning.main' }}>
+                            ⚠️ Hay cambios pendientes por aplicar
+                        </Typography>
+                    )}
                 </Box>
 
                 <IconButton onClick={() => setShowPopup(false)}>
@@ -164,8 +192,10 @@ export function UsuarioActiveFilters({ totalResults, sx }: Props) {
 
             <DialogContent sx={{ p: 3 }}>
                 <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                    {/* ✅ Solo mostrar filtros aplicados, no los pendientes */}
+
                     {/* Filtro de búsqueda */}
-                    {state.search && (
+                    {state.search && !currentHasPendingChanges && (
                         <FilterItem
                             field="Búsqueda"
                             operator="contiene"
@@ -175,7 +205,7 @@ export function UsuarioActiveFilters({ totalResults, sx }: Props) {
                     )}
 
                     {/* Filtros de tipo */}
-                    {state.tipo.length > 0 && (
+                    {state.tipo.length > 0 && !currentHasPendingChanges && (
                         <>
                             {state.tipo.length === 1 ? (
                                 <FilterItem
@@ -205,8 +235,8 @@ export function UsuarioActiveFilters({ totalResults, sx }: Props) {
                         />
                     )}
 
-                    {/* Mensaje si no hay filtros */}
-                    {!hasActiveFilters && (
+                    {/* Mensaje si no hay filtros aplicados */}
+                    {!hasAppliedFilters && (
                         <Box
                             sx={{
                                 textAlign: 'center',
@@ -218,6 +248,11 @@ export function UsuarioActiveFilters({ totalResults, sx }: Props) {
                             <Typography variant="body2">
                                 No hay filtros aplicados
                             </Typography>
+                            {currentHasPendingChanges && (
+                                <Typography variant="caption" sx={{ color: 'warning.main', mt: 1, display: 'block' }}>
+                                    Tienes cambios pendientes por aplicar
+                                </Typography>
+                            )}
                         </Box>
                     )}
                 </Box>
@@ -241,7 +276,7 @@ export function UsuarioActiveFilters({ totalResults, sx }: Props) {
                     color="error"
                     startIcon={<Iconify icon="solar:trash-bin-trash-bold" width={18} />}
                     onClick={handleClearAll}
-                    disabled={!hasActiveFilters}
+                    disabled={!hasAppliedFilters}
                 >
                     Limpiar todos los filtros
                 </Button>
@@ -249,8 +284,8 @@ export function UsuarioActiveFilters({ totalResults, sx }: Props) {
         </Dialog>
     );
 
-    // Si no hay filtros, no mostrar nada
-    if (!hasActiveFilters) {
+    // ✅ Si no hay filtros aplicados, no mostrar nada
+    if (!hasAppliedFilters) {
         return null;
     }
 
@@ -271,19 +306,26 @@ export function UsuarioActiveFilters({ totalResults, sx }: Props) {
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                             <Iconify icon="solar:eye-bold" width={14} />
                             <span>{`${getFilterCount()} filtro${getFilterCount() !== 1 ? 's' : ''}`}</span>
+                            {currentHasPendingChanges && (
+                                <Iconify
+                                    icon="solar:danger-bold"
+                                    width={12}
+                                    sx={{ color: 'warning.main', ml: 0.5 }}
+                                />
+                            )}
                         </Box>
                     }
                     onClick={() => setShowPopup(true)}
                     sx={{
-                        backgroundColor: 'primary.lighter',
-                        color: 'primary.dark',
+                        backgroundColor: currentHasPendingChanges ? 'warning.lighter' : 'primary.lighter',
+                        color: currentHasPendingChanges ? 'warning.dark' : 'primary.dark',
                         border: '1px solid',
-                        borderColor: 'primary.light',
+                        borderColor: currentHasPendingChanges ? 'warning.light' : 'primary.light',
                         cursor: 'pointer',
                         fontSize: '0.75rem',
                         height: 24,
                         '&:hover': {
-                            backgroundColor: 'primary.light',
+                            backgroundColor: currentHasPendingChanges ? 'warning.light' : 'primary.light',
                         },
                         '& .MuiChip-label': {
                             display: 'flex',

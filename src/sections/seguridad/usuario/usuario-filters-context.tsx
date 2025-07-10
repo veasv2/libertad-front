@@ -27,6 +27,9 @@ interface UsuarioFiltersContextValue {
     // Estado actual
     state: UsuarioFiltersState;
 
+    // ✅ MODIFICADO: Función para verificar cambios pendientes
+    hasPendingChanges: (localSearch?: string, localTipo?: TipoUsuarioValue[]) => boolean;
+
     // Acciones específicas
     setSearch: (search: string) => void;
     setTipo: (tipo: TipoUsuarioValue[]) => void;
@@ -74,6 +77,23 @@ interface UsuarioFiltersProviderProps {
 
 export function UsuarioFiltersProvider({ children }: UsuarioFiltersProviderProps) {
     const [state, setState] = useState<UsuarioFiltersState>(initialState);
+
+    // Estado para trackear cambios pendientes en el toolbar
+    const [appliedToolbarFilters, setAppliedToolbarFilters] = useState({
+        search: '',
+        tipo: [] as TipoUsuarioValue[]
+    });
+
+    // ✅ MODIFICADO: Función para verificar cambios pendientes que acepta parámetros
+    const hasPendingChanges = useCallback((localSearch?: string, localTipo?: TipoUsuarioValue[]) => {
+        const searchToCompare = localSearch !== undefined ? localSearch : state.search;
+        const tipoToCompare = localTipo !== undefined ? localTipo : state.tipo;
+
+        return (
+            searchToCompare !== appliedToolbarFilters.search ||
+            JSON.stringify(tipoToCompare) !== JSON.stringify(appliedToolbarFilters.tipo)
+        );
+    }, [state.search, state.tipo, appliedToolbarFilters]);
 
     // Acciones específicas
     const setSearch = useCallback((search: string) => {
@@ -131,6 +151,9 @@ export function UsuarioFiltersProvider({ children }: UsuarioFiltersProviderProps
             tipo,
             page: 0
         }));
+
+        // Actualizar los filtros aplicados
+        setAppliedToolbarFilters({ search, tipo });
     }, []);
 
     const resetPage = useCallback(() => {
@@ -142,28 +165,32 @@ export function UsuarioFiltersProvider({ children }: UsuarioFiltersProviderProps
 
     const resetAllFilters = useCallback(() => {
         setState(initialState);
+        setAppliedToolbarFilters({
+            search: '',
+            tipo: []
+        });
     }, []);
 
     // Verificaciones
     const hasActiveFilters = useMemo(() => {
         return !!(
-            state.search ||
-            state.tipo.length > 0 ||
+            appliedToolbarFilters.search ||
+            appliedToolbarFilters.tipo.length > 0 ||
             state.estado !== 'all'
         );
-    }, [state]);
+    }, [appliedToolbarFilters.search, appliedToolbarFilters.tipo.length, state.estado]);
 
     const canReset = useMemo(() => {
         return hasActiveFilters;
     }, [hasActiveFilters]);
 
-    // Parámetros para el servicio
+    // Parámetros para el servicio (usando filtros aplicados)
     const getServiceParams = useCallback(() => {
         const conditions: UsuarioWhere[] = [];
 
-        // 1. Filtro de búsqueda de texto (OR anidado)
-        if (state.search && state.search.trim()) {
-            const searchTerm = state.search.trim();
+        // 1. Filtro de búsqueda de texto (OR anidado) - usar filtros aplicados
+        if (appliedToolbarFilters.search && appliedToolbarFilters.search.trim()) {
+            const searchTerm = appliedToolbarFilters.search.trim();
             conditions.push({
                 OR: [
                     { nombres: { contains: searchTerm } },
@@ -175,14 +202,14 @@ export function UsuarioFiltersProvider({ children }: UsuarioFiltersProviderProps
             });
         }
 
-        // 2. Filtro de tipo (AND)
-        if (state.tipo && state.tipo.length > 0) {
+        // 2. Filtro de tipo (AND) - usar filtros aplicados
+        if (appliedToolbarFilters.tipo && appliedToolbarFilters.tipo.length > 0) {
             conditions.push({
-                tipo: { in: state.tipo }
+                tipo: { in: appliedToolbarFilters.tipo }
             });
         }
 
-        // 3. Filtro de estado del tab (AND)
+        // 3. Filtro de estado del tab (AND) - este se aplica inmediatamente
         if (state.estado !== 'all') {
             conditions.push({
                 estado: { equals: state.estado }
@@ -208,10 +235,11 @@ export function UsuarioFiltersProvider({ children }: UsuarioFiltersProviderProps
             },
             sort: state.sort
         };
-    }, [state]);
+    }, [appliedToolbarFilters, state.estado, state.page, state.pageSize, state.sort]);
 
     const value = useMemo(() => ({
         state,
+        hasPendingChanges,
         setSearch,
         setTipo,
         setEstado,
@@ -226,6 +254,7 @@ export function UsuarioFiltersProvider({ children }: UsuarioFiltersProviderProps
         getServiceParams,
     }), [
         state,
+        hasPendingChanges,
         setSearch,
         setTipo,
         setEstado,

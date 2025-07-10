@@ -13,6 +13,7 @@ import InputLabel from '@mui/material/InputLabel';
 import IconButton from '@mui/material/IconButton';
 import FormControl from '@mui/material/FormControl';
 import Button from '@mui/material/Button';
+import Badge from '@mui/material/Badge';
 import InputAdornment from '@mui/material/InputAdornment';
 
 import type { TipoUsuarioValue } from 'src/types/enums/usuario-enum';
@@ -27,11 +28,14 @@ import { useUsuarioFilters } from './usuario-filters-context';
 
 export function UsuarioTableToolbar() {
   const menuActions = usePopover();
-  const { state, applyToolbarFilters } = useUsuarioFilters();
+  const { state, applyToolbarFilters, hasPendingChanges } = useUsuarioFilters();
 
   // Estados locales para manejar inputs antes de aplicar
   const [localSearch, setLocalSearch] = useState(state.search);
   const [localTipo, setLocalTipo] = useState<TipoUsuarioValue[]>(state.tipo);
+
+  // ✅ MODIFICADO: Verificar cambios pendientes con los estados locales
+  const hasLocalPendingChanges = hasPendingChanges(localSearch, localTipo);
 
   // Sincronizar estados locales cuando cambie el estado del contexto
   useEffect(() => {
@@ -56,6 +60,7 @@ export function UsuarioTableToolbar() {
     []
   );
 
+  // ✅ Función handleApplyFilters
   const handleApplyFilters = useCallback(() => {
     applyToolbarFilters(localSearch, localTipo);
   }, [localSearch, localTipo, applyToolbarFilters]);
@@ -180,15 +185,17 @@ export function UsuarioTableToolbar() {
               Agregar
             </Button>
 
-            <Button
-              variant="contained"
-              startIcon={<Iconify icon="solar:restart-bold" />}
-              onClick={handleApplyFilters}
-              sx={{ px: 2.5, py: 1 }}
-            >
-              Actualizar
-            </Button>
-
+            <Badge color="primary" badgeContent="" invisible={!hasLocalPendingChanges}>
+              <Button
+                variant="outlined"
+                color='primary'
+                startIcon={<Iconify icon="solar:restart-bold" />}
+                onClick={handleApplyFilters}
+                sx={{ px: 2.5, py: 1 }}
+              >
+                Actualizar
+              </Button>
+            </Badge>
             <IconButton onClick={menuActions.onOpen}>
               <Iconify icon="eva:more-vertical-fill" />
             </IconButton>
