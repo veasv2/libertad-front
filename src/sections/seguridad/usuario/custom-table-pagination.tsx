@@ -1,3 +1,5 @@
+// src/sections/seguridad/usuario/custom-table-pagination.tsx
+
 import { forwardRef } from 'react';
 import Box from '@mui/material/Box';
 import TablePagination from '@mui/material/TablePagination';

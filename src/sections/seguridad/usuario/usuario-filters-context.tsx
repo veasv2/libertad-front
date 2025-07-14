@@ -1,6 +1,9 @@
+// src/sections/seguridad/usuario/usuario-filters-context.tsx
+
 'use client';
 
-import { createContext, useContext, useCallback, useMemo, ReactNode, useState } from 'react';
+import { createContext, useContext, useCallback, useMemo, ReactNode, useReducer, useEffect } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import type { UsuarioWhere } from 'src/services/seguridad/usuario/usuario-types';
 import type { TipoUsuarioValue } from 'src/types/enums/usuario-enum';
 import type { SortConfig } from 'src/types/filters';
@@ -21,13 +24,35 @@ interface UsuarioFiltersState {
     // Paginación
     page: number;
     pageSize: number;
+
+    // Selección única
+    selectedId: string | null;
+
+    // Filtros aplicados (para tracking de cambios pendientes)
+    appliedToolbarFilters: {
+        search: string;
+        tipo: TipoUsuarioValue[];
+    };
 }
+
+type UsuarioFiltersAction =
+    | { type: 'SET_SEARCH'; payload: string }
+    | { type: 'SET_TIPO'; payload: TipoUsuarioValue[] }
+    | { type: 'SET_ESTADO'; payload: string }
+    | { type: 'SET_SORT'; payload: SortConfig }
+    | { type: 'SET_PAGE'; payload: number }
+    | { type: 'SET_PAGE_SIZE'; payload: number }
+    | { type: 'SET_SELECTED_ID'; payload: string | null }
+    | { type: 'APPLY_TOOLBAR_FILTERS'; payload: { search: string; tipo: TipoUsuarioValue[] } }
+    | { type: 'RESET_ALL_FILTERS' }
+    | { type: 'INITIALIZE_FROM_URL'; payload: Partial<UsuarioFiltersState> }
+    | { type: 'VERIFY_SELECTION'; payload: { availableIds: string[]; fromUrl?: boolean } };
 
 interface UsuarioFiltersContextValue {
     // Estado actual
     state: UsuarioFiltersState;
 
-    // ✅ MODIFICADO: Función para verificar cambios pendientes
+    // Función para verificar cambios pendientes
     hasPendingChanges: (localSearch?: string, localTipo?: TipoUsuarioValue[]) => boolean;
 
     // Acciones específicas
@@ -37,11 +62,13 @@ interface UsuarioFiltersContextValue {
     setSort: (sort: SortConfig) => void;
     setPage: (page: number) => void;
     setPageSize: (pageSize: number) => void;
+    setSelectedId: (id: string | null) => void;
 
     // Acciones compuestas
     applyToolbarFilters: (search: string, tipo: TipoUsuarioValue[]) => void;
     resetPage: () => void;
     resetAllFilters: () => void;
+    verifySelection: (availableIds: string[], fromUrl?: boolean) => void;
 
     // Verificaciones
     hasActiveFilters: boolean;
@@ -65,7 +92,109 @@ const initialState: UsuarioFiltersState = {
     sort: [{ column: 'nombres', direction: 'asc' }],
     page: 0,
     pageSize: 10,
+    selectedId: null,
+    appliedToolbarFilters: {
+        search: '',
+        tipo: []
+    }
 };
+
+function usuarioFiltersReducer(state: UsuarioFiltersState, action: UsuarioFiltersAction): UsuarioFiltersState {
+    switch (action.type) {
+        case 'SET_SEARCH':
+            return {
+                ...state,
+                search: action.payload,
+                page: 0
+            };
+
+        case 'SET_TIPO':
+            return {
+                ...state,
+                tipo: action.payload,
+                page: 0
+            };
+
+        case 'SET_ESTADO':
+            return {
+                ...state,
+                estado: action.payload,
+                page: 0
+            };
+
+        case 'SET_SORT':
+            return {
+                ...state,
+                sort: action.payload,
+                page: 0
+            };
+
+        case 'SET_PAGE':
+            return {
+                ...state,
+                page: action.payload,
+                selectedId: null // Limpiar selección al cambiar página
+            };
+
+        case 'SET_PAGE_SIZE':
+            return {
+                ...state,
+                pageSize: action.payload,
+                page: 0,
+                selectedId: null // Limpiar selección al cambiar página
+            };
+
+        case 'SET_SELECTED_ID':
+            return {
+                ...state,
+                selectedId: action.payload
+            };
+
+        case 'APPLY_TOOLBAR_FILTERS':
+            return {
+                ...state,
+                search: action.payload.search,
+                tipo: action.payload.tipo,
+                page: 0,
+                appliedToolbarFilters: {
+                    search: action.payload.search,
+                    tipo: action.payload.tipo
+                }
+            };
+
+        case 'RESET_ALL_FILTERS':
+            return {
+                ...initialState
+            };
+
+        case 'VERIFY_SELECTION':
+            const { availableIds, fromUrl } = action.payload;
+            const currentSelectedId = state.selectedId;
+
+            if (currentSelectedId && !availableIds.includes(currentSelectedId)) {
+                // Si hay selección pero no está en resultados disponibles
+                if (fromUrl) {
+                    // Solo mostrar toast si viene de URL (carga inicial)
+                    // El toast se manejará en el componente que llama a esta acción
+                    console.warn('Selected item not found in current results');
+                }
+                return {
+                    ...state,
+                    selectedId: null // Limpiar selección silenciosamente
+                };
+            }
+            return state;
+
+        case 'INITIALIZE_FROM_URL':
+            return {
+                ...state,
+                ...action.payload
+            };
+
+        default:
+            return state;
+    }
+}
 
 const UsuarioFiltersContext = createContext<UsuarioFiltersContextValue | undefined>(undefined);
 
@@ -76,109 +205,164 @@ interface UsuarioFiltersProviderProps {
 }
 
 export function UsuarioFiltersProvider({ children }: UsuarioFiltersProviderProps) {
-    const [state, setState] = useState<UsuarioFiltersState>(initialState);
+    const router = useRouter();
+    const searchParams = useSearchParams();
+    const [state, dispatch] = useReducer(usuarioFiltersReducer, initialState);
 
-    // Estado para trackear cambios pendientes en el toolbar
-    const [appliedToolbarFilters, setAppliedToolbarFilters] = useState({
-        search: '',
-        tipo: [] as TipoUsuarioValue[]
-    });
+    // Función para convertir estado a URL params
+    const stateToUrlParams = useCallback((filterState: UsuarioFiltersState) => {
+        const params = new URLSearchParams();
 
-    // ✅ MODIFICADO: Función para verificar cambios pendientes que acepta parámetros
+        // Solo agregar parámetros que no sean valores por defecto
+        if (filterState.appliedToolbarFilters.search) {
+            params.set('search', filterState.appliedToolbarFilters.search);
+        }
+
+        if (filterState.appliedToolbarFilters.tipo.length > 0) {
+            params.set('tipo', filterState.appliedToolbarFilters.tipo.join(','));
+        }
+
+        if (filterState.estado !== 'all') {
+            params.set('estado', filterState.estado);
+        }
+
+        if (filterState.selectedId) {
+            params.set('selectedId', filterState.selectedId);
+        }
+
+        if (filterState.page > 0) {
+            params.set('page', filterState.page.toString());
+        }
+
+        if (filterState.pageSize !== 10) {
+            params.set('pageSize', filterState.pageSize.toString());
+        }
+
+        if (filterState.sort[0]?.column !== 'nombres' || filterState.sort[0]?.direction !== 'asc') {
+            const sortParam = filterState.sort.map(s => `${s.column}:${s.direction}`).join(',');
+            params.set('sort', sortParam);
+        }
+
+        return params.toString();
+    }, []);
+
+    // Función para parsear URL params a estado
+    const urlParamsToState = useCallback((params: URLSearchParams): Partial<UsuarioFiltersState> => {
+        const search = params.get('search') || '';
+        const tipoParam = params.get('tipo');
+        const tipo = tipoParam ? tipoParam.split(',') as TipoUsuarioValue[] : [];
+        const estado = params.get('estado') || 'all';
+        const selectedId = params.get('selectedId') || null;
+        const page = parseInt(params.get('page') || '0');
+        const pageSize = parseInt(params.get('pageSize') || '10');
+
+        const sortParam = params.get('sort');
+        let sort: SortConfig = [{ column: 'nombres', direction: 'asc' }];
+        if (sortParam) {
+            sort = sortParam.split(',').map(s => {
+                const [column, direction] = s.split(':');
+                return { column, direction: direction as 'asc' | 'desc' };
+            });
+        }
+
+        return {
+            search,
+            tipo,
+            estado,
+            selectedId,
+            page,
+            pageSize,
+            sort,
+            appliedToolbarFilters: {
+                search,
+                tipo
+            }
+        };
+    }, []);
+
+    // Inicializar desde URL al montar
+    useEffect(() => {
+        const urlState = urlParamsToState(searchParams);
+        dispatch({ type: 'INITIALIZE_FROM_URL', payload: urlState });
+    }, []); // Solo al montar
+
+    // Sincronizar cambios de estado con URL
+    useEffect(() => {
+        const urlParams = stateToUrlParams(state);
+        const currentUrl = window.location.pathname;
+        const newUrl = urlParams ? `${currentUrl}?${urlParams}` : currentUrl;
+
+        // Solo actualizar si la URL realmente cambió
+        if (window.location.href !== window.location.origin + newUrl) {
+            router.replace(newUrl, { scroll: false });
+        }
+    }, [state, stateToUrlParams, router]);
+
+    // Función para verificar cambios pendientes
     const hasPendingChanges = useCallback((localSearch?: string, localTipo?: TipoUsuarioValue[]) => {
         const searchToCompare = localSearch !== undefined ? localSearch : state.search;
         const tipoToCompare = localTipo !== undefined ? localTipo : state.tipo;
 
         return (
-            searchToCompare !== appliedToolbarFilters.search ||
-            JSON.stringify(tipoToCompare) !== JSON.stringify(appliedToolbarFilters.tipo)
+            searchToCompare !== state.appliedToolbarFilters.search ||
+            JSON.stringify(tipoToCompare) !== JSON.stringify(state.appliedToolbarFilters.tipo)
         );
-    }, [state.search, state.tipo, appliedToolbarFilters]);
+    }, [state.search, state.tipo, state.appliedToolbarFilters]);
 
     // Acciones específicas
     const setSearch = useCallback((search: string) => {
-        setState(prev => ({
-            ...prev,
-            search,
-            page: 0
-        }));
+        dispatch({ type: 'SET_SEARCH', payload: search });
     }, []);
 
     const setTipo = useCallback((tipo: TipoUsuarioValue[]) => {
-        setState(prev => ({
-            ...prev,
-            tipo,
-            page: 0
-        }));
+        dispatch({ type: 'SET_TIPO', payload: tipo });
     }, []);
 
     const setEstado = useCallback((estado: string) => {
-        setState(prev => ({
-            ...prev,
-            estado,
-            page: 0
-        }));
+        dispatch({ type: 'SET_ESTADO', payload: estado });
     }, []);
 
     const setSort = useCallback((sort: SortConfig) => {
-        setState(prev => ({
-            ...prev,
-            sort,
-            page: 0
-        }));
+        dispatch({ type: 'SET_SORT', payload: sort });
     }, []);
 
     const setPage = useCallback((page: number) => {
-        setState(prev => ({
-            ...prev,
-            page
-        }));
+        dispatch({ type: 'SET_PAGE', payload: page });
     }, []);
 
     const setPageSize = useCallback((pageSize: number) => {
-        setState(prev => ({
-            ...prev,
-            pageSize,
-            page: 0
-        }));
+        dispatch({ type: 'SET_PAGE_SIZE', payload: pageSize });
+    }, []);
+
+    const setSelectedId = useCallback((id: string | null) => {
+        dispatch({ type: 'SET_SELECTED_ID', payload: id });
     }, []);
 
     // Acciones compuestas
     const applyToolbarFilters = useCallback((search: string, tipo: TipoUsuarioValue[]) => {
-        setState(prev => ({
-            ...prev,
-            search,
-            tipo,
-            page: 0
-        }));
-
-        // Actualizar los filtros aplicados
-        setAppliedToolbarFilters({ search, tipo });
+        dispatch({ type: 'APPLY_TOOLBAR_FILTERS', payload: { search, tipo } });
     }, []);
 
     const resetPage = useCallback(() => {
-        setState(prev => ({
-            ...prev,
-            page: 0
-        }));
+        dispatch({ type: 'SET_PAGE', payload: 0 });
     }, []);
 
     const resetAllFilters = useCallback(() => {
-        setState(initialState);
-        setAppliedToolbarFilters({
-            search: '',
-            tipo: []
-        });
+        dispatch({ type: 'RESET_ALL_FILTERS' });
+    }, []);
+
+    const verifySelection = useCallback((availableIds: string[], fromUrl: boolean = false) => {
+        dispatch({ type: 'VERIFY_SELECTION', payload: { availableIds, fromUrl } });
     }, []);
 
     // Verificaciones
     const hasActiveFilters = useMemo(() => {
         return !!(
-            appliedToolbarFilters.search ||
-            appliedToolbarFilters.tipo.length > 0 ||
+            state.appliedToolbarFilters.search ||
+            state.appliedToolbarFilters.tipo.length > 0 ||
             state.estado !== 'all'
         );
-    }, [appliedToolbarFilters.search, appliedToolbarFilters.tipo.length, state.estado]);
+    }, [state.appliedToolbarFilters.search, state.appliedToolbarFilters.tipo.length, state.estado]);
 
     const canReset = useMemo(() => {
         return hasActiveFilters;
@@ -189,8 +373,8 @@ export function UsuarioFiltersProvider({ children }: UsuarioFiltersProviderProps
         const conditions: UsuarioWhere[] = [];
 
         // 1. Filtro de búsqueda de texto (OR anidado) - usar filtros aplicados
-        if (appliedToolbarFilters.search && appliedToolbarFilters.search.trim()) {
-            const searchTerm = appliedToolbarFilters.search.trim();
+        if (state.appliedToolbarFilters.search && state.appliedToolbarFilters.search.trim()) {
+            const searchTerm = state.appliedToolbarFilters.search.trim();
             conditions.push({
                 OR: [
                     { nombres: { contains: searchTerm } },
@@ -203,9 +387,9 @@ export function UsuarioFiltersProvider({ children }: UsuarioFiltersProviderProps
         }
 
         // 2. Filtro de tipo (AND) - usar filtros aplicados
-        if (appliedToolbarFilters.tipo && appliedToolbarFilters.tipo.length > 0) {
+        if (state.appliedToolbarFilters.tipo && state.appliedToolbarFilters.tipo.length > 0) {
             conditions.push({
-                tipo: { in: appliedToolbarFilters.tipo }
+                tipo: { in: state.appliedToolbarFilters.tipo }
             });
         }
 
@@ -235,7 +419,7 @@ export function UsuarioFiltersProvider({ children }: UsuarioFiltersProviderProps
             },
             sort: state.sort
         };
-    }, [appliedToolbarFilters, state.estado, state.page, state.pageSize, state.sort]);
+    }, [state.appliedToolbarFilters, state.estado, state.page, state.pageSize, state.sort]);
 
     const value = useMemo(() => ({
         state,
@@ -246,9 +430,11 @@ export function UsuarioFiltersProvider({ children }: UsuarioFiltersProviderProps
         setSort,
         setPage,
         setPageSize,
+        setSelectedId,
         applyToolbarFilters,
         resetPage,
         resetAllFilters,
+        verifySelection,
         hasActiveFilters,
         canReset,
         getServiceParams,
@@ -261,9 +447,11 @@ export function UsuarioFiltersProvider({ children }: UsuarioFiltersProviderProps
         setSort,
         setPage,
         setPageSize,
+        setSelectedId,
         applyToolbarFilters,
         resetPage,
         resetAllFilters,
+        verifySelection,
         hasActiveFilters,
         canReset,
         getServiceParams,

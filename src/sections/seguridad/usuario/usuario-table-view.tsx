@@ -1,6 +1,8 @@
+// src/sections/seguridad/usuario/usuario-table-view.tsx
+
 'use client';
 
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useEffect } from 'react';
 
 import Typography from '@mui/material/Typography';
 import { varAlpha } from 'minimal-shared/utils';
@@ -35,7 +37,6 @@ import {
 import { Label } from 'src/components/label';
 import { toast } from 'src/components/snackbar';
 import { Scrollbar } from 'src/components/scrollbar';
-import { useTable } from 'src/components/table';
 
 import { UsuarioTableRow } from './usuario-table-row';
 import { UsuarioTableToolbar } from './usuario-table-toolbar';
@@ -64,13 +65,14 @@ type TableHeaderCell = {
 };
 
 const TABLE_HEAD: TableHeaderCell[] = [
+  { id: 'checkbox', label: '', width: 48 }, // Checkbox column
   { id: 'email', label: 'Usuario', sort: true },
   { id: 'nombres', label: 'Nombres', width: { xs: 120, sm: 150, md: 180 }, sort: true },
   { id: 'telefono', label: 'Teléfono', width: { xs: 90, sm: 100, md: 120 }, hide: { xs: true, sm: false } },
   { id: 'tipo', label: 'Tipo', width: { xs: 80, sm: 100, md: 120 }, sort: true },
   { id: 'estado', label: 'Estado', width: { xs: 80, sm: 100, md: 120 }, sort: true },
   { id: 'ultimo_acceso', label: 'Conexión', width: { xs: 100, sm: 120, md: 140 }, sort: true, hide: { xs: true, md: false } },
-  { id: '', label: '', width: 64 }
+  { id: 'actions', label: '', width: 64 }
 ];
 
 const visuallyHidden = {
@@ -87,13 +89,14 @@ const visuallyHidden = {
 
 // Componente interno que usa el contexto
 function UsuarioTableViewContent() {
-  const table = useTable();
   const {
     state,
     setEstado,
     setSort,
     setPage,
     setPageSize,
+    setSelectedId,
+    verifySelection,
     hasActiveFilters,
     canReset,
     getServiceParams
@@ -118,6 +121,20 @@ function UsuarioTableViewContent() {
     hasPrevPage,
     totalPages
   } = useUsuarioList(serviceParams);
+
+  // Verificar selección cuando cambien los resultados
+  useEffect(() => {
+    if (usuarios && usuarios.length > 0 && state.selectedId) {
+      const availableIds = usuarios.map(u => u.uuid);
+      const isInitialLoad = window.location.search.includes('selectedId');
+      verifySelection(availableIds, isInitialLoad);
+
+      // Mostrar toast solo si viene de URL y no existe
+      if (isInitialLoad && state.selectedId && !availableIds.includes(state.selectedId)) {
+        toast.warning('El elemento seleccionado no está en la lista actual');
+      }
+    }
+  }, [usuarios, state.selectedId, verifySelection]);
 
   // Manejar errores
   if (error) {
@@ -191,6 +208,17 @@ function UsuarioTableViewContent() {
   const handleRowsPerPageChange = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
     setPageSize(parseInt(event.target.value, 10));
   }, [setPageSize]);
+
+  // Handler para selección de fila
+  const handleSelectRow = useCallback((userId: string) => {
+    if (state.selectedId === userId) {
+      // Deseleccionar si ya está seleccionado
+      setSelectedId(null);
+    } else {
+      // Seleccionar nueva fila
+      setSelectedId(userId);
+    }
+  }, [state.selectedId, setSelectedId]);
 
   return (
     <DashboardContent
@@ -342,8 +370,8 @@ function UsuarioTableViewContent() {
                     <UsuarioTableRow
                       key={row.uuid}
                       row={row}
-                      selected={table.selected.includes(row.uuid)}
-                      onSelectRow={() => table.onSelectRow(row.uuid)}
+                      selected={state.selectedId === row.uuid}
+                      onSelectRow={() => handleSelectRow(row.uuid)}
                       editHref={paths.seguridad.user.edit(row.uuid)}
                     />
                   ))

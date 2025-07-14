@@ -1,3 +1,5 @@
+// src/sections/seguridad/usuario/usuario-table-row.tsx
+
 import type { IUserItem } from 'src/types/user';
 
 import { useBoolean, usePopover } from 'minimal-shared/hooks';
@@ -69,12 +71,29 @@ export function UsuarioTableRow({ row, selected, editHref, onSelectRow }: Props)
 
   return (
     <>
-      <TableRow hover selected={selected} aria-checked={selected} tabIndex={-1}>
-
+      <TableRow
+        hover
+        selected={selected}
+        aria-checked={selected}
+        tabIndex={-1}
+        onClick={onSelectRow}
+        sx={{
+          cursor: 'pointer',
+          '&:hover': {
+            backgroundColor: 'action.hover',
+          }
+        }}
+      >
+        <TableCell padding="checkbox">
+          <Checkbox
+            checked={selected}
+            onChange={onSelectRow}
+            onClick={(e) => e.stopPropagation()}
+          />
+        </TableCell>
 
         <TableCell id="dni_email">
           <Box sx={{ gap: 2, display: 'flex', alignItems: 'center' }}>
-            {/* <Avatar alt={row.dni} src={row.email} /> */}
             <Avatar alt={row.dni} />
             <Stack sx={{ typography: 'body2', flex: '1 1 auto', alignItems: 'flex-start' }}>
               <Link
@@ -82,9 +101,9 @@ export function UsuarioTableRow({ row, selected, editHref, onSelectRow }: Props)
                 href={editHref}
                 color="inherit"
                 sx={{ cursor: 'pointer' }}
+                onClick={(e) => e.stopPropagation()}
               >
                 {row.dni}
-
               </Link>
               <Box component="span" sx={{ color: 'text.disabled' }}>
                 {row.email}
@@ -92,6 +111,7 @@ export function UsuarioTableRow({ row, selected, editHref, onSelectRow }: Props)
             </Stack>
           </Box>
         </TableCell>
+
         <TableCell>
           <Box sx={{ gap: 0.5, display: 'flex', flexDirection: 'column' }}>
             <span>{row.nombres}</span>
@@ -111,6 +131,7 @@ export function UsuarioTableRow({ row, selected, editHref, onSelectRow }: Props)
             {row.tipo}
           </Label>
         </TableCell>
+
         <TableCell>
           <Label
             variant="soft"
@@ -119,6 +140,7 @@ export function UsuarioTableRow({ row, selected, editHref, onSelectRow }: Props)
             {row.estado}
           </Label>
         </TableCell>
+
         <TableCell>
           <Box sx={{ gap: 0.5, display: 'flex', flexDirection: 'column' }}>
             <span>{row.ultimo_acceso && fDate(row.ultimo_acceso)}</span>
@@ -130,16 +152,18 @@ export function UsuarioTableRow({ row, selected, editHref, onSelectRow }: Props)
 
         <TableCell>
           <Box sx={{ display: 'flex', alignItems: 'center' }}>
-
             <IconButton
               color={menuActions.open ? 'inherit' : 'primary'}
-              onClick={menuActions.onOpen}
+              onClick={(e) => {
+                e.stopPropagation();
+                menuActions.onOpen(e);
+              }}
             >
               <Iconify icon="eva:more-vertical-fill" />
             </IconButton>
           </Box>
         </TableCell>
-      </TableRow >
+      </TableRow>
 
       {renderMenuActions()}
     </>
