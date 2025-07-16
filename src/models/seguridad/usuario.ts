@@ -1,9 +1,8 @@
 // src/models/seguridad/usuario.ts
-
+import { BaseEntity } from 'src/models/base/base-entity';
 import { TipoUsuarioValue, EstadoUsuarioValue } from 'src/types/enums/usuario-enum';
 
-export interface Usuario {
-    uuid: string;
+export interface Usuario extends BaseEntity {
     dni: string;
     email: string;
     nombres: string;

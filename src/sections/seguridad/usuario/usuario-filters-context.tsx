@@ -3,6 +3,7 @@
 import type { ReactNode } from 'react';
 import { createGenericFiltersContext } from 'src/contexts/filters/generic-filters-context';
 import type { TipoUsuarioValue } from 'src/types/enums/usuario-enum';
+import { SortConfig } from 'src/contexts/filters';
 
 // Tipos específicos para Usuario
 export interface UsuarioToolbarFilters {
@@ -83,7 +84,7 @@ function urlParamsToState(params: URLSearchParams) {
 
     // Parsear sort
     const sortParam = params.get('sort');
-    let sort = [{ column: 'nombres', direction: 'asc' as const }];
+    let sort: SortConfig[] = [{ column: 'nombres', direction: 'asc' as const }];
     if (sortParam) {
         sort = sortParam.split(',').map(s => {
             const [column, direction] = s.split(':');

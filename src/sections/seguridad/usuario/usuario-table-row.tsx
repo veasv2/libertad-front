@@ -1,15 +1,11 @@
 // src/sections/seguridad/usuario/usuario-table-row.tsx
 
-import type { IUserItem } from 'src/types/user';
-
 import { useBoolean, usePopover } from 'minimal-shared/hooks';
 
 import Box from '@mui/material/Box';
 import Link from '@mui/material/Link';
 import Stack from '@mui/material/Stack';
-import Button from '@mui/material/Button';
 import Avatar from '@mui/material/Avatar';
-import Tooltip from '@mui/material/Tooltip';
 import MenuList from '@mui/material/MenuList';
 import MenuItem from '@mui/material/MenuItem';
 import TableRow from '@mui/material/TableRow';
@@ -22,7 +18,6 @@ import { RouterLink } from 'src/routes/components';
 
 import { Label } from 'src/components/label';
 import { Iconify } from 'src/components/iconify';
-import { ConfirmDialog } from 'src/components/custom-dialog';
 import { CustomPopover } from 'src/components/custom-popover';
 
 import type { Usuario } from 'src/models/seguridad/usuario';
@@ -38,7 +33,6 @@ type Props = {
 
 export function UsuarioTableRow({ row, selected, editHref, onSelectRow }: Props) {
   const menuActions = usePopover();
-  const confirmDialog = useBoolean();
 
   const renderMenuActions = () => (
     <CustomPopover

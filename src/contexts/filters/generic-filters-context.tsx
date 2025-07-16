@@ -146,7 +146,7 @@ function useUrlSync<T>(
     enabled: boolean = true,
     debounceMs: number = 300
 ) {
-    const timeoutRef = useRef<NodeJS.Timeout>();
+    const timeoutRef = useRef<NodeJS.Timeout | null>(null);
 
     useEffect(() => {
         if (!enabled) return;

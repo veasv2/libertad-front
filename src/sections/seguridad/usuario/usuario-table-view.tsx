@@ -20,18 +20,10 @@ import TableCell from '@mui/material/TableCell';
 import TableSortLabel from '@mui/material/TableSortLabel';
 
 import type { PaletteColorKey } from 'src/theme/core';
-
 import { paths } from 'src/routes/paths';
-import { RouterLink } from 'src/routes/components';
-
 import { DashboardContent } from 'src/layouts/dashboard';
 
-import type { TipoUsuarioValue } from 'src/types/enums/usuario-enum';
-
-import {
-  useUsuarioList,
-  useUsuarioStatusSummary
-} from 'src/services/seguridad/usuario/usuario-service';
+import { useUsuarioList, useUsuarioStatusSummary } from 'src/services/seguridad/usuario/usuario-service';
 
 import { Label } from 'src/components/label';
 import { toast } from 'src/components/snackbar';
@@ -47,8 +39,9 @@ import {
   UsuarioFiltersProvider,
   useUsuarioFilters,
   type UsuarioToolbarFilters,
-  type UsuarioExtraState
+  type UsuarioExtraState,
 } from './usuario-filters-context';
+import { SortConfig } from 'src/contexts/filters';
 
 // Helper para mapear estados a colores
 const getStatusColor = (status: string): PaletteColorKey | 'default' => {
@@ -150,8 +143,6 @@ function UsuarioTableViewContent() {
     toast.error('Error al cargar usuarios');
   }
 
-  const notFound = (!usuarios.length && canReset) || (!usuarios.length && !isLoading);
-
   // Construir tabs dinámicos basados en el resumen
   const dynamicTabs = useMemo(() => {
     const allTab = {
@@ -201,7 +192,7 @@ function UsuarioTableViewContent() {
             ? { ...s, direction: s.direction === 'asc' ? 'desc' : 'asc' }
             : s
         );
-        setSort(newSort);
+        setSort(newSort as SortConfig[]);
       } else {
         setSort([{ column: fieldName, direction: 'asc' }]);
       }
