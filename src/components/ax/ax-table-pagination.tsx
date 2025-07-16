@@ -1,20 +1,19 @@
-// src/sections/seguridad/usuario/custom-table-pagination.tsx
+// src/sections/seguridad/usuario/ax-table-pagination.tsx
 
-import { forwardRef } from 'react';
+import { forwardRef, ReactNode } from 'react';
 import Box from '@mui/material/Box';
 import TablePagination from '@mui/material/TablePagination';
 import type { TablePaginationProps } from '@mui/material/TablePagination';
 
-import { UsuarioActiveFilters } from './usuario-active-filters';
-
 // ----------------------------------------------------------------------
 
-type CustomTablePaginationProps = TablePaginationProps & {
+type AxTablePaginationProps = TablePaginationProps & {
     showFilters?: boolean;
+    ActiveFiltersComponent?: ReactNode;
 };
 
-export const CustomTablePagination = forwardRef<HTMLDivElement, CustomTablePaginationProps>(
-    ({ showFilters = false, ...paginationProps }, ref) => {
+export const AxTablePagination = forwardRef<HTMLDivElement, AxTablePaginationProps>(
+    ({ showFilters = false, ActiveFiltersComponent, ...paginationProps }, ref) => {
         return (
             <Box
                 ref={ref}
@@ -28,12 +27,7 @@ export const CustomTablePagination = forwardRef<HTMLDivElement, CustomTablePagin
             >
                 {/* Lado izquierdo - Filtros activos */}
                 <Box sx={{ flex: '0 0 auto', px: 2, py: 1 }}>
-                    {showFilters && (
-                        <UsuarioActiveFilters
-                            compact={true}
-                            totalResults={paginationProps.count}
-                        />
-                    )}
+                    {showFilters && ActiveFiltersComponent}
                 </Box>
 
                 {/* Lado derecho - Paginación */}
@@ -53,4 +47,4 @@ export const CustomTablePagination = forwardRef<HTMLDivElement, CustomTablePagin
     }
 );
 
-CustomTablePagination.displayName = 'CustomTablePagination';
+AxTablePagination.displayName = 'AxTablePagination';

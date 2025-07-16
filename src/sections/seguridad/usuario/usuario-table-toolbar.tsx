@@ -24,26 +24,30 @@ import { CustomPopover } from 'src/components/custom-popover';
 import { RouterLink } from 'src/routes/components';
 import { paths } from 'src/routes/paths';
 import { TIPO_USUARIO_OPTIONS } from 'src/types/enums/usuario-enum';
+
+// ✅ CAMBIO 1: Importar desde la nueva ubicación local
 import { useUsuarioFilters } from './usuario-filters-context';
 
 // ----------------------------------------------------------------------
 
 export function UsuarioTableToolbar() {
   const menuActions = usePopover();
+
+  // ✅ CAMBIO 2: El hook sigue funcionando exactamente igual
   const { state, applyToolbarFilters, hasPendingChanges } = useUsuarioFilters();
 
   // Estados locales para manejar inputs antes de aplicar
-  const [localSearch, setLocalSearch] = useState(state.search);
-  const [localTipo, setLocalTipo] = useState<TipoUsuarioValue[]>(state.tipo);
+  const [localSearch, setLocalSearch] = useState(state.toolbarFilters.search);
+  const [localTipo, setLocalTipo] = useState<TipoUsuarioValue[]>(state.toolbarFilters.tipo);
 
-  // ✅ MODIFICADO: Verificar cambios pendientes con los estados locales
-  const hasLocalPendingChanges = hasPendingChanges(localSearch, localTipo);
+  // ✅ CAMBIO 3: Tipado mejorado automáticamente
+  const hasLocalPendingChanges = hasPendingChanges({ search: localSearch, tipo: localTipo });
 
   // Sincronizar estados locales cuando cambie el estado del contexto
   useEffect(() => {
-    setLocalSearch(state.search);
-    setLocalTipo(state.tipo);
-  }, [state.search, state.tipo]);
+    setLocalSearch(state.toolbarFilters.search);
+    setLocalTipo(state.toolbarFilters.tipo);
+  }, [state.toolbarFilters.search, state.toolbarFilters.tipo]);
 
   const handleChangeSearch = useCallback(
     (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -62,9 +66,9 @@ export function UsuarioTableToolbar() {
     []
   );
 
-  // ✅ Función handleApplyFilters
+  // ✅ CAMBIO 4: Tipado más estricto automáticamente
   const handleApplyFilters = useCallback(() => {
-    applyToolbarFilters(localSearch, localTipo);
+    applyToolbarFilters({ search: localSearch, tipo: localTipo });
   }, [localSearch, localTipo, applyToolbarFilters]);
 
   const handleKeyDown = useCallback(
@@ -198,6 +202,7 @@ export function UsuarioTableToolbar() {
                 Actualizar
               </Button>
             </Badge>
+
             <IconButton onClick={menuActions.onOpen}>
               <Iconify icon="eva:more-vertical-fill" />
             </IconButton>

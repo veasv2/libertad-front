@@ -26,8 +26,7 @@ import { RouterLink } from 'src/routes/components';
 
 import { DashboardContent } from 'src/layouts/dashboard';
 
-import { Usuario } from 'src/models/seguridad/usuario';
-import { ESTADO_USUARIO_OPTIONS, TIPO_USUARIO_OPTIONS } from 'src/types/enums/usuario-enum';
+import type { TipoUsuarioValue } from 'src/types/enums/usuario-enum';
 
 import {
   useUsuarioList,
@@ -40,12 +39,20 @@ import { Scrollbar } from 'src/components/scrollbar';
 
 import { UsuarioTableRow } from './usuario-table-row';
 import { UsuarioTableToolbar } from './usuario-table-toolbar';
-import { CustomTablePagination } from './custom-table-pagination';
-import { UsuarioFiltersProvider, useUsuarioFilters } from './usuario-filters-context';
+import { AxTablePagination } from 'src/components/ax/ax-table-pagination';
+import { AxActiveFilter, FilterItem } from 'src/components/ax/ax-active-filter';
+
+// ✅ CAMBIO 1: Importar desde la nueva ubicación
+import {
+  UsuarioFiltersProvider,
+  useUsuarioFilters,
+  type UsuarioToolbarFilters,
+  type UsuarioExtraState
+} from './usuario-filters-context';
 
 // Helper para mapear estados a colores
-const getStatusColor = (status: string): PaletteColorKey => {
-  const colorMap: Record<string, PaletteColorKey> = {
+const getStatusColor = (status: string): PaletteColorKey | 'default' => {
+  const colorMap: Record<string, PaletteColorKey | 'default'> = {
     'ACTIVO': 'success',
     'INACTIVO': 'default',
     'SUSPENDIDO': 'warning',
@@ -65,7 +72,7 @@ type TableHeaderCell = {
 };
 
 const TABLE_HEAD: TableHeaderCell[] = [
-  { id: 'checkbox', label: '', width: 48 }, // Checkbox column
+  { id: 'checkbox', label: '', width: 48 },
   { id: 'email', label: 'Usuario', sort: true },
   { id: 'nombres', label: 'Nombres', width: { xs: 120, sm: 150, md: 180 }, sort: true },
   { id: 'telefono', label: 'Teléfono', width: { xs: 90, sm: 100, md: 120 }, hide: { xs: true, sm: false } },
@@ -89,9 +96,10 @@ const visuallyHidden = {
 
 // Componente interno que usa el contexto
 function UsuarioTableViewContent() {
+  // ✅ CAMBIO 2: El hook sigue igual, pero viene de la nueva ubicación
   const {
     state,
-    setEstado,
+    setExtraState,
     setSort,
     setPage,
     setPageSize,
@@ -99,7 +107,9 @@ function UsuarioTableViewContent() {
     verifySelection,
     hasActiveFilters,
     canReset,
-    getServiceParams
+    getServiceParams,
+    applyToolbarFilters,
+    resetAllFilters
   } = useUsuarioFilters();
 
   // Resumen SIN filtros del toolbar (solo totales generales)
@@ -109,7 +119,7 @@ function UsuarioTableViewContent() {
     isLoading: summaryLoading
   } = useUsuarioStatusSummary();
 
-  // Usar el servicio de lista con parámetros del contexto
+  // ✅ CAMBIO 3: getServiceParams() funciona exactamente igual
   const serviceParams = getServiceParams();
   const {
     data: usuarios,
@@ -129,7 +139,6 @@ function UsuarioTableViewContent() {
       const isInitialLoad = window.location.search.includes('selectedId');
       verifySelection(availableIds, isInitialLoad);
 
-      // Mostrar toast solo si viene de URL y no existe
       if (isInitialLoad && state.selectedId && !availableIds.includes(state.selectedId)) {
         toast.warning('El elemento seleccionado no está en la lista actual');
       }
@@ -155,7 +164,7 @@ function UsuarioTableViewContent() {
     const statusTabs = summaryItems.map(item => ({
       value: item.label,
       label: item.label,
-      color: getStatusColor(item.label),
+      color: getStatusColor(item.label) as PaletteColorKey,
       count: item.value
     }));
 
@@ -165,12 +174,12 @@ function UsuarioTableViewContent() {
   // Handler para cambiar tab
   const handleFilterStatus = useCallback(
     (event: React.SyntheticEvent, newValue: string) => {
-      setEstado(newValue);
+      setExtraState({ ...state.extraState, estado: newValue });
     },
-    [setEstado]
+    [setExtraState, state.extraState]
   );
 
-  // Handler para ordenamiento
+  // ✅ CAMBIO 4: Simplificar el handler de sort (usa los nuevos tipos)
   const handleSort = useCallback(
     (columnId: string) => {
       const fieldMapping: Record<string, string> = {
@@ -212,10 +221,8 @@ function UsuarioTableViewContent() {
   // Handler para selección de fila
   const handleSelectRow = useCallback((userId: string) => {
     if (state.selectedId === userId) {
-      // Deseleccionar si ya está seleccionado
       setSelectedId(null);
     } else {
-      // Seleccionar nueva fila
       setSelectedId(userId);
     }
   }, [state.selectedId, setSelectedId]);
@@ -242,7 +249,7 @@ function UsuarioTableViewContent() {
       >
         {/* Tabs dinámicos */}
         <Tabs
-          value={state.estado}
+          value={state.extraState.estado}
           onChange={handleFilterStatus}
           sx={[
             (theme) => ({
@@ -260,7 +267,7 @@ function UsuarioTableViewContent() {
               label={tab.label}
               icon={
                 <Label
-                  variant={tab.value === state.estado ? 'filled' : 'soft'}
+                  variant={tab.value === state.extraState.estado ? 'filled' : 'soft'}
                   color={tab.color}
                 >
                   {summaryLoading ? '...' : tab.count}
@@ -401,7 +408,7 @@ function UsuarioTableViewContent() {
         </Box>
 
         <Box sx={{ flexShrink: 0 }}>
-          <CustomTablePagination
+          <AxTablePagination
             page={state.page}
             count={total}
             rowsPerPage={state.pageSize}
@@ -412,6 +419,13 @@ function UsuarioTableViewContent() {
             showFirstButton
             showLastButton
             showFilters={canReset}
+            ActiveFiltersComponent={
+              <AxActiveFilter
+                filters={getActiveFilters(state.toolbarFilters, state.extraState, setExtraState, applyToolbarFilters)}
+                hasPendingChanges={false}
+                onClearAll={resetAllFilters}
+              />
+            }
           />
         </Box>
       </Card>
@@ -419,7 +433,55 @@ function UsuarioTableViewContent() {
   );
 }
 
-// Componente principal que provee el contexto
+// ✅ CAMBIO 5: Simplificar getActiveFilters (tipos más específicos)
+function getActiveFilters(
+  toolbarFilters: UsuarioToolbarFilters,
+  extraState: UsuarioExtraState,
+  setExtraState: (extra: UsuarioExtraState) => void,
+  applyToolbarFilters: (filters: UsuarioToolbarFilters) => void
+) {
+  const filters = [];
+
+  if (toolbarFilters.search) {
+    filters.push({
+      key: 'search',
+      label: 'Búsqueda',
+      value: toolbarFilters.search,
+      onRemove: () => applyToolbarFilters({
+        ...toolbarFilters,
+        search: ''
+      }),
+    });
+  }
+
+  if (toolbarFilters.tipo && toolbarFilters.tipo.length > 0) {
+    filters.push({
+      key: 'tipo',
+      label: 'Tipo',
+      value: toolbarFilters.tipo.join(', '),
+      onRemove: () => applyToolbarFilters({
+        ...toolbarFilters,
+        tipo: []
+      }),
+    });
+  }
+
+  if (extraState.estado && extraState.estado !== 'all') {
+    filters.push({
+      key: 'estado',
+      label: 'Estado',
+      value: extraState.estado,
+      onRemove: () => setExtraState({
+        ...extraState,
+        estado: 'all'
+      }),
+    });
+  }
+
+  return filters;
+}
+
+// ✅ CAMBIO 6: El Provider viene de la nueva ubicación
 export function UsuarioTableView() {
   return (
     <UsuarioFiltersProvider>
