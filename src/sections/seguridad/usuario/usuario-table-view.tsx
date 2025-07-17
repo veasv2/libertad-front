@@ -37,7 +37,7 @@ import { AxActiveFilter } from 'src/components/ax/ax-active-filter';
 // Importar desde la nueva ubicación
 import { UsuarioOpcionProvider } from './usuario-opcion-context';
 import { useUsuarioOpcion } from './usuario-opcion-context';
-import { SortConfig } from 'src/contexts/filters';
+import { SortConfig } from 'src/contexts/filters/filter-config-types';
 
 // Helper para mapear estados a colores
 const getStatusColor = (status: string): PaletteColorKey | 'default' => {

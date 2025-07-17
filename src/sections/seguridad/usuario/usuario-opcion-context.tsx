@@ -2,8 +2,6 @@ import React, { createContext, useContext } from 'react';
 import { useCallback } from 'react';
 import { useFilters } from 'src/contexts/filters/opcion-filters-context';
 import { usuarioOpcionConfig } from './usuario-opcion-config';
-import type { ReactNode } from 'react';
-import type { EntityFiltersConfig } from 'src/contexts/filters/filter-config-types';
 
 // Define los nombres de los filtros diferidos
 const DEFERRED_FILTERS = ['search'];

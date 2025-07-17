@@ -19,7 +19,7 @@ import type { TipoUsuarioValue } from 'src/types/enums/usuario-enum';
 import { Iconify } from 'src/components/iconify';
 import { CustomPopover } from 'src/components/custom-popover';
 import { RouterLink } from 'src/routes/components';
-import { usuarioPageRoutes } from './usuario-page-routes';
+import { usuarioPageRoutes } from './usuario-opcion-config';
 import { TIPO_USUARIO_OPTIONS } from 'src/types/enums/usuario-enum';
 import { useUsuarioOpcion } from './usuario-opcion-context';
 

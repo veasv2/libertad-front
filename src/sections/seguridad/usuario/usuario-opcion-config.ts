@@ -1,6 +1,13 @@
 import type { EntityFiltersConfig } from 'src/contexts/filters/filter-config-types';
 import { TIPO_USUARIO_OPTIONS } from 'src/types/enums/usuario-enum';
 
+export const usuarioPageRoutes = {
+    root: '/seguridad/usuario',
+    new: '/seguridad/usuario/nuevo',
+    edit: (id: string) => `/seguridad/usuario/${id}/editar`,
+    view: (id: string) => `/seguridad/usuario/${id}`,
+};
+
 export const usuarioOpcionConfig: EntityFiltersConfig = {
     filters: [
         {

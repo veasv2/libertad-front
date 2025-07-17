@@ -1,4 +1,9 @@
-import type { SortConfig } from './types';
+// src/contexts/filters/filter-config-types.ts
+
+export interface SortConfig {
+    column: string;
+    direction: 'asc' | 'desc';
+}
 
 export interface FilterConfig {
     name: string;
