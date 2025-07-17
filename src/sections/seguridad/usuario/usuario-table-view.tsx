@@ -51,6 +51,15 @@ const getStatusColor = (status: string): PaletteColorKey | 'default' => {
   return colorMap[status] || 'default';
 };
 
+// Estados conocidos para los tabs
+const KNOWN_STATES = [
+  { value: 'ACTIVO', label: 'ACTIVO', color: 'success' as PaletteColorKey },
+  { value: 'INACTIVO', label: 'INACTIVO', color: 'default' as PaletteColorKey },
+  { value: 'SUSPENDIDO', label: 'SUSPENDIDO', color: 'warning' as PaletteColorKey },
+  { value: 'PENDIENTE', label: 'PENDIENTE', color: 'info' as PaletteColorKey },
+  { value: 'BAJA', label: 'BAJA', color: 'error' as PaletteColorKey }
+];
+
 type TableHeaderCell = {
   id: string;
   label: string;
@@ -93,6 +102,7 @@ function UsuarioTableViewContent() {
     setPage,
     setPageSize,
     setSelectedId,
+    setImmediateFilter,
     hasActiveFilters,
     canReset,
     applyFilters,
@@ -110,7 +120,6 @@ function UsuarioTableViewContent() {
 
   // getServiceParams() funciona exactamente igual
   const serviceParams = getServiceParams();
-  console.log('[TABLE VIEW] serviceParams:', serviceParams, 'ref:', serviceParams);
   const {
     data: usuarios,
     total,
@@ -149,22 +158,63 @@ function UsuarioTableViewContent() {
       count: summaryTotal
     };
 
-    const statusTabs = summaryItems.map(item => ({
-      value: item.label,
-      label: item.label,
-      color: getStatusColor(item.label) as PaletteColorKey,
-      count: item.value
+    // Crear un map de los conteos desde summaryItems
+    const countsMap = summaryItems.reduce((acc, item) => {
+      acc[item.label] = item.value;
+      return acc;
+    }, {} as Record<string, number>);
+
+    // Usar estados conocidos con conteos del resumen
+    const statusTabs = KNOWN_STATES.map(state => ({
+      value: state.value,
+      label: state.label,
+      color: state.color,
+      count: countsMap[state.value] || 0
     }));
 
     return [allTab, ...statusTabs];
   }, [summaryTotal, summaryItems]);
 
+  // Función para obtener el valor válido del tab
+  const getValidTabValue = useCallback((currentValue: string) => {
+    const validValues = dynamicTabs.map(tab => tab.value);
+    return validValues.includes(currentValue) ? currentValue : 'all';
+  }, [dynamicTabs]);
+
+  // Valor actual del tab, con fallback a 'all' si no es válido
+  const currentTabValue = getValidTabValue(state.extraState.estado);
+
+  // Sincronizar filtros de estado al cargar desde URL
+  useEffect(() => {
+    const estadoFromUrl = state.extraState.estado;
+    const estadoFromFilters = state.activeFilters.estado;
+
+    // Si hay un estado en la URL pero no en los filtros, sincronizarlo
+    if (estadoFromUrl !== 'all' && estadoFromFilters !== estadoFromUrl) {
+      setImmediateFilter('estado', estadoFromUrl);
+    }
+    // Si no hay estado en la URL, limpiar el filtro
+    else if (estadoFromUrl === 'all' && estadoFromFilters !== undefined) {
+      setImmediateFilter('estado', undefined);
+    }
+  }, [state.extraState.estado, state.activeFilters.estado, setImmediateFilter]);
+
   // Handler para cambiar tab
   const handleFilterStatus = useCallback(
     (event: React.SyntheticEvent, newValue: string) => {
+      // Actualizar el extraState para los tabs
       setExtraState({ ...state.extraState, estado: newValue });
+
+      // También actualizar el filtro de estado en activeFilters
+      if (newValue === 'all') {
+        // Si se selecciona "Todos", remover el filtro de estado
+        setImmediateFilter('estado', undefined);
+      } else {
+        // Si se selecciona un estado específico, aplicar el filtro
+        setImmediateFilter('estado', newValue);
+      }
     },
-    [setExtraState, state.extraState]
+    [setExtraState, setImmediateFilter, state.extraState]
   );
 
   // ✅ CAMBIO 4: Simplificar el handler de sort (usa los nuevos tipos)
@@ -237,7 +287,7 @@ function UsuarioTableViewContent() {
       >
         {/* Tabs dinámicos */}
         <Tabs
-          value={state.extraState.estado}
+          value={currentTabValue}
           onChange={handleFilterStatus}
           sx={[
             (theme) => ({
@@ -255,7 +305,7 @@ function UsuarioTableViewContent() {
               label={tab.label}
               icon={
                 <Label
-                  variant={tab.value === state.extraState.estado ? 'filled' : 'soft'}
+                  variant={tab.value === currentTabValue ? 'filled' : 'soft'}
                   color={tab.color}
                 >
                   {summaryLoading ? '...' : tab.count}

@@ -33,16 +33,6 @@ export function UsuarioTableToolbar() {
     tipo: state.activeFilters.tipo || [],
   });
 
-  // LOG: Estado local de diferidos
-  useEffect(() => {
-    console.log('[TOOLBAR] localDeferred:', localDeferred);
-  }, [localDeferred]);
-
-  // LOG: Filtros activos globales
-  useEffect(() => {
-    console.log('[TOOLBAR] state.activeFilters:', state.activeFilters);
-  }, [state.activeFilters]);
-
   // Sincronizar estado local cuando cambian los filtros aplicados
   useEffect(() => {
     setLocalDeferred({

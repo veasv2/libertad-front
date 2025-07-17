@@ -35,8 +35,11 @@ export const usuarioOpcionConfig: EntityFiltersConfig = {
             mode: 'immediate',
             options: [
                 { value: 'all', label: 'Todos' },
-                { value: 'active', label: 'Activo' },
-                { value: 'inactive', label: 'Inactivo' }
+                { value: 'ACTIVO', label: 'Activo' },
+                { value: 'INACTIVO', label: 'Inactivo' },
+                { value: 'SUSPENDIDO', label: 'Suspendido' },
+                { value: 'PENDIENTE', label: 'Pendiente' },
+                { value: 'BAJA', label: 'Baja' }
             ],
             field: 'estado',
             operator: 'equals'

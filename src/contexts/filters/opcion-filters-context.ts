@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo, useEffect } from 'react';
+import { useReducer, useCallback, useMemo, useEffect, useRef } from 'react';
 import type { EntityFiltersConfig } from './filter-config-types';
 
 interface FiltersState {
@@ -10,124 +10,311 @@ interface FiltersState {
     selectedId: string | null;
 }
 
-export function useFilters(config: EntityFiltersConfig) {
-    const [state, setState] = useState<FiltersState>({
-        activeFilters: {},
-        extraState: { estado: 'all' },
-        sort: config.defaultSort,
-        page: 0,
-        pageSize: config.defaultPageSize || 10,
-        selectedId: null,
+type FiltersAction =
+    | { type: 'SET_IMMEDIATE_FILTER'; payload: { name: string; value: any } }
+    | { type: 'APPLY_DEFERRED_FILTERS'; payload: Record<string, any> }
+    | { type: 'SET_EXTRA_STATE'; payload: Record<string, any> }
+    | { type: 'SET_SORT'; payload: any[] }
+    | { type: 'SET_PAGE'; payload: number }
+    | { type: 'SET_PAGE_SIZE'; payload: number }
+    | { type: 'SET_SELECTED_ID'; payload: string | null }
+    | { type: 'RESET_ALL_FILTERS'; payload: { config: EntityFiltersConfig } }
+    | { type: 'LOAD_FROM_URL'; payload: { activeFilters: Record<string, any>; extraState: Record<string, any>; selectedId: string | null } };
+
+// Utility function para limpiar filtros vacíos
+const cleanEmptyFilters = (filters: Record<string, any>): Record<string, any> => {
+    return Object.entries(filters).reduce((acc, [key, value]) => {
+        if (
+            value !== undefined &&
+            value !== null &&
+            !(typeof value === 'string' && value.trim() === '') &&
+            !(Array.isArray(value) && value.length === 0)
+        ) {
+            acc[key] = value;
+        }
+        return acc;
+    }, {} as Record<string, any>);
+};
+
+// Utility function para parsear parámetros de URL
+const parseUrlParams = (config: EntityFiltersConfig) => {
+    if (typeof window === 'undefined') {
+        return {
+            activeFilters: {},
+            extraState: { estado: 'all' },
+            selectedId: null,
+        };
+    }
+
+    const urlParams = new URLSearchParams(window.location.search);
+    const activeFilters: Record<string, any> = {};
+    const extraState: Record<string, any> = { estado: 'all' };
+    let selectedId: string | null = null;
+
+    // Parse known filter parameters
+    config.filters.forEach(filter => {
+        const value = urlParams.get(filter.name);
+        if (value) {
+            if (filter.type === 'multiselect') {
+                activeFilters[filter.name] = value.split(',');
+            } else {
+                activeFilters[filter.name] = value;
+            }
+        }
     });
 
-    // Cuando se aplica un filtro inmediato:
-    const setImmediateFilter = useCallback((name: string, value: any) => {
-        setState(s => ({
-            ...s,
-            activeFilters: {
-                ...s.activeFilters,
-                [name]: value
+    // Parse search fields
+    config.searchFields.forEach(field => {
+        const value = urlParams.get(field);
+        if (value) {
+            activeFilters[field] = value;
+        }
+    });
+
+    // Parse any other parameters as generic filters
+    // This handles cases like ?tipo=ALCALDE that aren't defined in config
+    const knownParams = new Set([
+        ...config.filters.map(f => f.name),
+        ...config.searchFields,
+        'estado',
+        'selectedId',
+        'page',
+        'pageSize',
+        'sort'
+    ]);
+
+    urlParams.forEach((value, key) => {
+        if (!knownParams.has(key) && value) {
+            // Check if value contains commas (potential array)
+            if (value.includes(',')) {
+                activeFilters[key] = value.split(',');
+            } else {
+                activeFilters[key] = value;
             }
-        }));
+        }
+    });
+
+    // Parse estado parameter
+    const estado = urlParams.get('estado');
+    if (estado) {
+        extraState.estado = estado;
+    }
+
+    // Parse selectedId parameter
+    const selectedIdParam = urlParams.get('selectedId');
+    if (selectedIdParam) {
+        selectedId = selectedIdParam;
+    }
+
+    return {
+        activeFilters: cleanEmptyFilters(activeFilters),
+        extraState,
+        selectedId,
+    };
+};
+
+const filtersReducer = (state: FiltersState, action: FiltersAction): FiltersState => {
+    switch (action.type) {
+        case 'SET_IMMEDIATE_FILTER':
+            return {
+                ...state,
+                activeFilters: {
+                    ...state.activeFilters,
+                    [action.payload.name]: action.payload.value
+                },
+                page: 0 // Reset page when filters change
+            };
+
+        case 'APPLY_DEFERRED_FILTERS': {
+            const combined = { ...state.activeFilters, ...action.payload };
+            const cleanedFilters = cleanEmptyFilters(combined);
+            return {
+                ...state,
+                activeFilters: cleanedFilters,
+                page: 0
+            };
+        }
+
+        case 'SET_EXTRA_STATE':
+            return {
+                ...state,
+                extraState: action.payload,
+                page: 0
+            };
+
+        case 'SET_SORT':
+            return {
+                ...state,
+                sort: action.payload,
+                page: 0
+            };
+
+        case 'SET_PAGE':
+            return {
+                ...state,
+                page: action.payload
+            };
+
+        case 'SET_PAGE_SIZE':
+            return {
+                ...state,
+                pageSize: action.payload,
+                page: 0
+            };
+
+        case 'SET_SELECTED_ID':
+            return {
+                ...state,
+                selectedId: action.payload
+            };
+
+        case 'RESET_ALL_FILTERS':
+            return {
+                activeFilters: {},
+                extraState: { estado: 'all' },
+                sort: action.payload.config.defaultSort,
+                page: 0,
+                pageSize: action.payload.config.defaultPageSize || 10,
+                selectedId: null,
+            };
+
+        case 'LOAD_FROM_URL':
+            return {
+                ...state,
+                activeFilters: action.payload.activeFilters,
+                extraState: action.payload.extraState,
+                selectedId: action.payload.selectedId,
+                page: 0 // Reset page when loading from URL
+            };
+
+        default:
+            return state;
+    }
+};
+
+export function useFilters(config: EntityFiltersConfig) {
+    const configRef = useRef(config);
+    configRef.current = config;
+
+    // Initialize state with URL parameters
+    const initialState = useMemo(() => {
+        const urlParams = parseUrlParams(config);
+        return {
+            activeFilters: urlParams.activeFilters,
+            extraState: urlParams.extraState,
+            sort: config.defaultSort,
+            page: 0,
+            pageSize: config.defaultPageSize || 10,
+            selectedId: urlParams.selectedId,
+        };
+    }, [config]);
+
+    const [state, dispatch] = useReducer(filtersReducer, initialState);
+
+    // Actions - solo necesitan useCallback los que se pasan como props
+    const setImmediateFilter = useCallback((name: string, value: any) => {
+        dispatch({ type: 'SET_IMMEDIATE_FILTER', payload: { name, value } });
     }, []);
 
     // Cuando se hace click en “Actualizar”:
     const applyDeferredFilters = useCallback((deferred: Record<string, any>) => {
-        setState(s => {
-            // Combina los inmediatos (ya en activeFilters) con los diferidos (deferred)
-            const combined = { ...s.activeFilters, ...deferred };
-            // Elimina los filtros vacíos
-            Object.keys(combined).forEach(key => {
-                const v = combined[key];
-                if (
-                    v === undefined ||
-                    v === null ||
-                    (typeof v === 'string' && v.trim() === '') ||
-                    (Array.isArray(v) && v.length === 0)
-                ) {
-                    delete combined[key];
-                }
-            });
-            console.log('[CONTEXT] applyDeferredFilters - combined:', combined);
-            return { ...s, activeFilters: combined };
-        });
+        dispatch({ type: 'APPLY_DEFERRED_FILTERS', payload: deferred });
     }, []);
 
     const setExtraState = useCallback((extra: Record<string, any>) => {
-        setState(s => ({ ...s, extraState: extra, page: 0 }));
+        dispatch({ type: 'SET_EXTRA_STATE', payload: extra });
     }, []);
 
     const setSort = useCallback((sort: any[]) => {
-        setState(s => ({ ...s, sort, page: 0 }));
+        dispatch({ type: 'SET_SORT', payload: sort });
     }, []);
 
     const setPage = useCallback((page: number) => {
-        setState(s => ({ ...s, page }));
+        dispatch({ type: 'SET_PAGE', payload: page });
     }, []);
 
     const setPageSize = useCallback((pageSize: number) => {
-        setState(s => ({ ...s, pageSize, page: 0 }));
+        dispatch({ type: 'SET_PAGE_SIZE', payload: pageSize });
     }, []);
 
     const setSelectedId = useCallback((selectedId: string | null) => {
-        setState(s => ({ ...s, selectedId }));
+        dispatch({ type: 'SET_SELECTED_ID', payload: selectedId });
     }, []);
 
     const resetAllFilters = useCallback(() => {
-        setState({
-            activeFilters: {},
-            extraState: { estado: 'all' },
-            sort: config.defaultSort,
-            page: 0,
-            pageSize: config.defaultPageSize || 10,
-            selectedId: null,
-        });
-    }, [config]);
+        dispatch({ type: 'RESET_ALL_FILTERS', payload: { config: configRef.current } });
+    }, []);
+
+    const loadFromUrl = useCallback(() => {
+        const urlParams = parseUrlParams(configRef.current);
+        dispatch({ type: 'LOAD_FROM_URL', payload: urlParams });
+    }, []);
+
+    // Listen for popstate events (back/forward navigation)
+    useEffect(() => {
+        const handlePopState = () => {
+            loadFromUrl();
+        };
+
+        window.addEventListener('popstate', handlePopState);
+        return () => window.removeEventListener('popstate', handlePopState);
+    }, [loadFromUrl]);
 
     // Sincronizar la URL cada vez que cambian los filtros aplicados
     useEffect(() => {
         const params = new URLSearchParams();
+
+        // Add all active filters to URL
         for (const key in state.activeFilters) {
             const value = state.activeFilters[key];
             if (Array.isArray(value) && value.length > 0) {
                 params.set(key, value.join(','));
             } else if (typeof value === 'string' && value.trim() !== '') {
                 params.set(key, value);
+            } else if (value !== undefined && value !== null && value !== '') {
+                params.set(key, String(value));
             }
         }
+
+        // Add estado if not 'all'
         if (state.extraState?.estado && state.extraState.estado !== 'all') {
             params.set('estado', state.extraState.estado);
         }
+
+        // Add selectedId if present
         if (state.selectedId) {
             params.set('selectedId', state.selectedId);
         }
-        window.history.replaceState({}, '', `${window.location.pathname}?${params.toString()}`);
+
+        const newUrl = `${window.location.pathname}?${params.toString()}`;
+        window.history.replaceState({}, '', newUrl);
     }, [state.activeFilters, state.extraState, state.selectedId]);
 
-    // Computed properties
+    // Computed properties - optimizadas
     const hasActiveFilters = useMemo(() => {
-        return JSON.stringify(state.activeFilters) !== JSON.stringify({}) ||
+        return Object.keys(state.activeFilters).length > 0 ||
             state.extraState.estado !== 'all' ||
-            JSON.stringify(state.sort) !== JSON.stringify(config.defaultSort);
-    }, [state.activeFilters, state.extraState.estado, state.sort, config.defaultSort]);
+            JSON.stringify(state.sort) !== JSON.stringify(configRef.current.defaultSort);
+    }, [state.activeFilters, state.extraState.estado, state.sort]);
 
-    const canReset = useMemo(() => hasActiveFilters, [hasActiveFilters]);
+    const canReset = hasActiveFilters; // No necesita useMemo ya que es una simple referencia
 
-    // Service params generator
+    // Service params generator - optimizado con configRef
     const getServiceParams = useCallback(() => {
+        const currentConfig = configRef.current;
         const conditions: any[] = [];
 
         // Search filters
         const searchTerm = state.activeFilters.search?.trim();
-        if (searchTerm && config.searchFields.length > 0) {
-            const searchConditions = config.searchFields.map(field => ({
+        if (searchTerm && currentConfig.searchFields.length > 0) {
+            const searchConditions = currentConfig.searchFields.map(field => ({
                 [field]: { contains: searchTerm }
             }));
             conditions.push({ OR: searchConditions });
         }
 
-        // Additional filters
-        config.filters.forEach(filter => {
+        // Known filters from config
+        currentConfig.filters.forEach(filter => {
             const value = state.activeFilters[filter.name];
             if (value && (Array.isArray(value) ? value.length > 0 : value !== '')) {
                 if (filter.name === 'search' && filter.searchFields) {
@@ -140,9 +327,28 @@ export function useFilters(config: EntityFiltersConfig) {
             }
         });
 
-        // Estado filter
-        if (state.extraState.estado !== 'all' && config.estadoField) {
-            conditions.push({ [config.estadoField]: { equals: state.extraState.estado } });
+        // Generic filters (not defined in config)
+        const knownFilterNames = new Set([
+            'search',
+            ...currentConfig.filters.map(f => f.name),
+            ...currentConfig.searchFields
+        ]);
+
+        Object.entries(state.activeFilters).forEach(([key, value]) => {
+            if (!knownFilterNames.has(key) && value && (Array.isArray(value) ? value.length > 0 : value !== '')) {
+                // For generic filters, use equals operator by default
+                if (Array.isArray(value)) {
+                    conditions.push({ [key]: { in: value } });
+                } else {
+                    conditions.push({ [key]: { equals: value } });
+                }
+            }
+        });
+
+        // Estado filter - solo usar extraState.estado si no hay filtro de estado en activeFilters
+        const hasEstadoFilter = state.activeFilters.estado !== undefined && state.activeFilters.estado !== null;
+        if (!hasEstadoFilter && state.extraState.estado !== 'all' && currentConfig.estadoField) {
+            conditions.push({ [currentConfig.estadoField]: { equals: state.extraState.estado } });
         }
 
         // Build final WHERE
@@ -163,22 +369,18 @@ export function useFilters(config: EntityFiltersConfig) {
             },
             sort: state.sort,
         };
-        console.log('[CONTEXT] getServiceParams - params enviados al backend:', params);
         return params;
-    }, [state, config]);
+    }, [state]);
 
-    // Verify selection helper
+    // Verify selection helper - optimizado
     const verifySelection = useCallback((availableIds: string[], fromUrl: boolean = false) => {
         if (state.selectedId && !availableIds.includes(state.selectedId)) {
-            if (fromUrl) {
-                console.warn('Selected item not found in current results');
-            }
             setSelectedId(null);
         }
     }, [state.selectedId, setSelectedId]);
 
-    // Al final, retorna SIEMPRE un nuevo objeto para forzar reactividad
-    const filtersApi = {
+    // Return memoizado para evitar re-renders innecesarios
+    const filtersApi = useMemo(() => ({
         state,
         setImmediateFilter,
         applyDeferredFilters,
@@ -188,12 +390,27 @@ export function useFilters(config: EntityFiltersConfig) {
         setPageSize,
         setSelectedId,
         resetAllFilters,
+        loadFromUrl,
         hasActiveFilters,
         canReset,
         getServiceParams,
         verifySelection,
-    };
-    // Log para depuración
-    console.log('[CONTEXT] useFilters re-render, state:', state);
+    }), [
+        state,
+        setImmediateFilter,
+        applyDeferredFilters,
+        setExtraState,
+        setSort,
+        setPage,
+        setPageSize,
+        setSelectedId,
+        resetAllFilters,
+        loadFromUrl,
+        hasActiveFilters,
+        canReset,
+        getServiceParams,
+        verifySelection,
+    ]);
+
     return filtersApi;
 } 
