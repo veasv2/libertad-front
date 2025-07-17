@@ -1,10 +1,7 @@
 import React, { createContext, useContext } from 'react';
-import { useCallback } from 'react';
+import { useCallback, useMemo } from 'react';
 import { useFilters } from 'src/contexts/filters/opcion-filters-context';
 import { usuarioOpcionConfig } from './usuario-opcion-config';
-
-// Define los nombres de los filtros diferidos
-const DEFERRED_FILTERS = ['search'];
 
 // Tipado del contexto
 export type UsuarioOpcionContextType = ReturnType<typeof useUsuarioOpcionContext>;
@@ -30,15 +27,27 @@ export function useUsuarioOpcion() {
 export function useUsuarioOpcionContext() {
     const filters = useFilters(usuarioOpcionConfig);
 
+    // Extraer dinámicamente los filtros diferidos de la configuración
+    const DEFERRED_FILTERS = useMemo(() => {
+        return usuarioOpcionConfig.filters
+            .filter(filter => filter.mode === 'deferred')
+            .map(filter => filter.name);
+    }, []);
+
+    // Helper para verificar si un filtro es diferido
+    const isDeferred = useCallback((filterName: string) => {
+        return DEFERRED_FILTERS.includes(filterName);
+    }, [DEFERRED_FILTERS]);
+
     // Método para filtros inmediatos
     const setFilter = useCallback((name: string, value: any) => {
-        if (DEFERRED_FILTERS.includes(name)) {
+        if (isDeferred(name)) {
             // No aplicar aún, solo actualizar el estado local en el componente
             // (el componente debe manejar el estado local de los diferidos)
         } else {
             filters.setImmediateFilter(name, value);
         }
-    }, [filters]);
+    }, [filters, isDeferred]);
 
     // Método para aplicar todos los filtros (inmediatos + diferidos)
     const applyFilters = useCallback((deferred: Record<string, any>) => {
@@ -48,10 +57,28 @@ export function useUsuarioOpcionContext() {
     // Helper para verificar si hay cambios pendientes en los diferidos
     const hasPendingChanges = useCallback((deferred: Record<string, any>) => {
         // Compara los valores diferidos locales con los aplicados globales
-        return DEFERRED_FILTERS.some(
-            key => (deferred[key] || '') !== (filters.state.activeFilters[key] || '')
-        );
-    }, [filters.state.activeFilters]);
+        return DEFERRED_FILTERS.some(key => {
+            const localValue = deferred[key];
+            const appliedValue = filters.state.activeFilters[key];
+
+            // Para strings
+            if (typeof localValue === 'string' || typeof appliedValue === 'string') {
+                return (localValue || '') !== (appliedValue || '');
+            }
+
+            // Para arrays
+            if (Array.isArray(localValue) || Array.isArray(appliedValue)) {
+                const localArray = Array.isArray(localValue) ? localValue : [];
+                const appliedArray = Array.isArray(appliedValue) ? appliedValue : [];
+
+                if (localArray.length !== appliedArray.length) return true;
+                return localArray.some((item, index) => item !== appliedArray[index]);
+            }
+
+            // Para otros tipos
+            return localValue !== appliedValue;
+        });
+    }, [filters.state.activeFilters, DEFERRED_FILTERS]);
 
     // Retornar SIEMPRE un nuevo objeto para forzar reactividad
     const contextValue = {
