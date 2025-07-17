@@ -1,10 +1,8 @@
 // src/sections/seguridad/usuario/usuario-table-toolbar.tsx
 
 import type { SelectChangeEvent } from '@mui/material/Select';
-
 import { useState, useCallback, useEffect } from 'react';
 import { usePopover } from 'minimal-shared/hooks';
-
 import Box from '@mui/material/Box';
 import Select from '@mui/material/Select';
 import MenuList from '@mui/material/MenuList';
@@ -17,59 +15,66 @@ import FormControl from '@mui/material/FormControl';
 import Button from '@mui/material/Button';
 import Badge from '@mui/material/Badge';
 import InputAdornment from '@mui/material/InputAdornment';
-
 import type { TipoUsuarioValue } from 'src/types/enums/usuario-enum';
 import { Iconify } from 'src/components/iconify';
 import { CustomPopover } from 'src/components/custom-popover';
 import { RouterLink } from 'src/routes/components';
-import { paths } from 'src/routes/paths';
+import { usuarioPageRoutes } from './usuario-page-routes';
 import { TIPO_USUARIO_OPTIONS } from 'src/types/enums/usuario-enum';
-
-// ✅ CAMBIO 1: Importar desde la nueva ubicación local
-import { useUsuarioFilters } from './usuario-filters-context';
-
-// ----------------------------------------------------------------------
+import { useUsuarioOpcion } from './usuario-opcion-context';
 
 export function UsuarioTableToolbar() {
   const menuActions = usePopover();
+  const { state, setFilter, applyFilters, hasPendingChanges, DEFERRED_FILTERS } = useUsuarioOpcion();
 
-  // ✅ CAMBIO 2: El hook sigue funcionando exactamente igual
-  const { state, applyToolbarFilters, hasPendingChanges } = useUsuarioFilters();
+  // Estado local solo para los filtros diferidos
+  const [localDeferred, setLocalDeferred] = useState<Record<string, any>>({
+    search: state.activeFilters.search || '',
+    tipo: state.activeFilters.tipo || [],
+  });
 
-  // Estados locales para manejar inputs antes de aplicar
-  const [localSearch, setLocalSearch] = useState(state.toolbarFilters.search);
-  const [localTipo, setLocalTipo] = useState<TipoUsuarioValue[]>(state.toolbarFilters.tipo);
-
-  // ✅ CAMBIO 3: Tipado mejorado automáticamente
-  const hasLocalPendingChanges = hasPendingChanges({ search: localSearch, tipo: localTipo });
-
-  // Sincronizar estados locales cuando cambie el estado del contexto
+  // LOG: Estado local de diferidos
   useEffect(() => {
-    setLocalSearch(state.toolbarFilters.search);
-    setLocalTipo(state.toolbarFilters.tipo);
-  }, [state.toolbarFilters.search, state.toolbarFilters.tipo]);
+    console.log('[TOOLBAR] localDeferred:', localDeferred);
+  }, [localDeferred]);
 
+  // LOG: Filtros activos globales
+  useEffect(() => {
+    console.log('[TOOLBAR] state.activeFilters:', state.activeFilters);
+  }, [state.activeFilters]);
+
+  // Sincronizar estado local cuando cambian los filtros aplicados
+  useEffect(() => {
+    setLocalDeferred({
+      search: state.activeFilters.search || '',
+      tipo: state.activeFilters.tipo || [],
+    });
+  }, [state.activeFilters.search, state.activeFilters.tipo]);
+
+  // Handler para search (diferido)
   const handleChangeSearch = useCallback(
     (event: React.ChangeEvent<HTMLInputElement>) => {
-      setLocalSearch(event.target.value);
+      setLocalDeferred(prev => ({ ...prev, search: event.target.value }));
     },
     []
   );
 
+  // Handler para tipo (diferido)
   const handleChangeTipo = useCallback(
     (event: SelectChangeEvent<TipoUsuarioValue[]>) => {
-      const newValue = typeof event.target.value === 'string'
-        ? []
-        : event.target.value;
-      setLocalTipo(newValue);
+      const newValue = typeof event.target.value === 'string' ? [] : event.target.value;
+      setLocalDeferred(prev => ({ ...prev, tipo: newValue }));
     },
     []
   );
 
-  // ✅ CAMBIO 4: Tipado más estricto automáticamente
+  // El botón de actualizar está activo si hay cambios en los diferidos
+  const hasLocalPendingChanges = hasPendingChanges(localDeferred);
+
+  // Aplica los filtros diferidos
   const handleApplyFilters = useCallback(() => {
-    applyToolbarFilters({ search: localSearch, tipo: localTipo });
-  }, [localSearch, localTipo, applyToolbarFilters]);
+    applyFilters(localDeferred);
+  }, [applyFilters, localDeferred]);
 
   const handleKeyDown = useCallback(
     (event: React.KeyboardEvent<HTMLInputElement>) => {
@@ -121,7 +126,7 @@ export function UsuarioTableToolbar() {
           <Select
             multiple
             label="Tipo de Usuario"
-            value={localTipo}
+            value={Array.isArray(localDeferred.tipo) ? localDeferred.tipo : []}
             onChange={handleChangeTipo}
             renderValue={(selected) =>
               selected.map(value =>
@@ -136,7 +141,7 @@ export function UsuarioTableToolbar() {
                 <Checkbox
                   disableRipple
                   size="small"
-                  checked={localTipo.includes(option.value)}
+                  checked={Array.isArray(localDeferred.tipo) && localDeferred.tipo.includes(option.value)}
                   slotProps={{ input: { id: `${option.value}-checkbox` } }}
                 />
                 {option.label}
@@ -157,7 +162,7 @@ export function UsuarioTableToolbar() {
         >
           <TextField
             fullWidth
-            value={localSearch}
+            value={localDeferred.search}
             onChange={handleChangeSearch}
             onKeyDown={handleKeyDown}
             placeholder="Buscar por nombre, apellidos, email o DNI..."
@@ -183,7 +188,7 @@ export function UsuarioTableToolbar() {
           >
             <Button
               component={RouterLink}
-              href={paths.seguridad.user.new}
+              href={usuarioPageRoutes.new}
               variant="outlined"
               startIcon={<Iconify icon="mingcute:add-line" />}
               sx={{ px: 2.5, py: 1 }}
@@ -194,10 +199,9 @@ export function UsuarioTableToolbar() {
             <Badge color="primary" badgeContent="" invisible={!hasLocalPendingChanges}>
               <Button
                 variant="outlined"
-                color='primary'
+                color="primary"
                 startIcon={<Iconify icon="solar:restart-bold" />}
                 onClick={handleApplyFilters}
-                sx={{ px: 2.5, py: 1 }}
               >
                 Actualizar
               </Button>

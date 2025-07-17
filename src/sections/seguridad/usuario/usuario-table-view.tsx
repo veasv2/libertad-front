@@ -32,15 +32,11 @@ import { Scrollbar } from 'src/components/scrollbar';
 import { UsuarioTableRow } from './usuario-table-row';
 import { UsuarioTableToolbar } from './usuario-table-toolbar';
 import { AxTablePagination } from 'src/components/ax/ax-table-pagination';
-import { AxActiveFilter, FilterItem } from 'src/components/ax/ax-active-filter';
+import { AxActiveFilter } from 'src/components/ax/ax-active-filter';
 
-// ✅ CAMBIO 1: Importar desde la nueva ubicación
-import {
-  UsuarioFiltersProvider,
-  useUsuarioFilters,
-  type UsuarioToolbarFilters,
-  type UsuarioExtraState,
-} from './usuario-filters-context';
+// Importar desde la nueva ubicación
+import { UsuarioOpcionProvider } from './usuario-opcion-context';
+import { useUsuarioOpcion } from './usuario-opcion-context';
 import { SortConfig } from 'src/contexts/filters';
 
 // Helper para mapear estados a colores
@@ -89,7 +85,7 @@ const visuallyHidden = {
 
 // Componente interno que usa el contexto
 function UsuarioTableViewContent() {
-  // ✅ CAMBIO 2: El hook sigue igual, pero viene de la nueva ubicación
+  // Usar el nuevo contexto de opciones
   const {
     state,
     setExtraState,
@@ -97,13 +93,13 @@ function UsuarioTableViewContent() {
     setPage,
     setPageSize,
     setSelectedId,
-    verifySelection,
     hasActiveFilters,
     canReset,
+    applyFilters,
+    resetAllFilters,
     getServiceParams,
-    applyToolbarFilters,
-    resetAllFilters
-  } = useUsuarioFilters();
+    verifySelection
+  } = useUsuarioOpcion();
 
   // Resumen SIN filtros del toolbar (solo totales generales)
   const {
@@ -112,8 +108,9 @@ function UsuarioTableViewContent() {
     isLoading: summaryLoading
   } = useUsuarioStatusSummary();
 
-  // ✅ CAMBIO 3: getServiceParams() funciona exactamente igual
+  // getServiceParams() funciona exactamente igual
   const serviceParams = getServiceParams();
+  console.log('[TABLE VIEW] serviceParams:', serviceParams, 'ref:', serviceParams);
   const {
     data: usuarios,
     total,
@@ -370,7 +367,7 @@ function UsuarioTableViewContent() {
                       row={row}
                       selected={state.selectedId === row.uuid}
                       onSelectRow={() => handleSelectRow(row.uuid)}
-                      editHref={paths.seguridad.user.edit(row.uuid)}
+                      editHref={`/seguridad/usuario/${row.uuid}/editar`}
                     />
                   ))
                 )}
@@ -412,7 +409,7 @@ function UsuarioTableViewContent() {
             showFilters={canReset}
             ActiveFiltersComponent={
               <AxActiveFilter
-                filters={getActiveFilters(state.toolbarFilters, state.extraState, setExtraState, applyToolbarFilters)}
+                filters={getActiveFilters(state.activeFilters || {}, state.extraState, setExtraState, applyFilters)}
                 hasPendingChanges={false}
                 onClearAll={resetAllFilters}
               />
@@ -424,36 +421,30 @@ function UsuarioTableViewContent() {
   );
 }
 
-// ✅ CAMBIO 5: Simplificar getActiveFilters (tipos más específicos)
+// Simplificar getActiveFilters (tipos más específicos)
 function getActiveFilters(
-  toolbarFilters: UsuarioToolbarFilters,
-  extraState: UsuarioExtraState,
-  setExtraState: (extra: UsuarioExtraState) => void,
-  applyToolbarFilters: (filters: UsuarioToolbarFilters) => void
+  activeFilters: any,
+  extraState: any,
+  setExtraState: (extra: any) => void,
+  applyFilters: (filters: any) => void
 ) {
   const filters = [];
 
-  if (toolbarFilters.search) {
+  if (activeFilters.search) {
     filters.push({
       key: 'search',
       label: 'Búsqueda',
-      value: toolbarFilters.search,
-      onRemove: () => applyToolbarFilters({
-        ...toolbarFilters,
-        search: ''
-      }),
+      value: activeFilters.search,
+      onRemove: () => applyFilters({ ...activeFilters, search: '' }),
     });
   }
 
-  if (toolbarFilters.tipo && toolbarFilters.tipo.length > 0) {
+  if (activeFilters.tipo && activeFilters.tipo.length > 0) {
     filters.push({
       key: 'tipo',
       label: 'Tipo',
-      value: toolbarFilters.tipo.join(', '),
-      onRemove: () => applyToolbarFilters({
-        ...toolbarFilters,
-        tipo: []
-      }),
+      value: activeFilters.tipo.join(', '),
+      onRemove: () => applyFilters({ ...activeFilters, tipo: [] }),
     });
   }
 
@@ -472,11 +463,11 @@ function getActiveFilters(
   return filters;
 }
 
-// ✅ CAMBIO 6: El Provider viene de la nueva ubicación
+// El componente principal no necesita provider ya que usa el contexto directamente
 export function UsuarioTableView() {
   return (
-    <UsuarioFiltersProvider>
+    <UsuarioOpcionProvider>
       <UsuarioTableViewContent />
-    </UsuarioFiltersProvider>
+    </UsuarioOpcionProvider>
   );
 }
